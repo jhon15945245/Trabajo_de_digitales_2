@@ -1,24 +1,4 @@
-"""
-symbol_energy.py
-================
-Métrica RF4b — Energía de símbolo (Es) y de bit (Eb).
 
-Energía de símbolo
-  • Teórica (de la constelación):   Es = (1/M)·Σ|s_i|²   (=1 por normalización)
-  • Medida (de la señal transmitida): el filtro SRRC tiene energía unitaria y
-    cada símbolo dura sps muestras, de modo que
-
-        Es_medida = P_bb · sps,     P_bb = E|s[n]|²  (envolvente compleja)
-
-    Si el sistema está bien implementado ambas coinciden (salvo la desviación
-    estadística de la muestra de símbolos).
-
-Energía de bit:   Eb = Es / log2(M).
-
-Unidades: energía normalizada (u.e.), con Es teórica = 1 u.e.
-
-Referencia: Proakis & Salehi, Cap. 4.
-"""
 
 from __future__ import annotations
 

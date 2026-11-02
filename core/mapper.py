@@ -1,30 +1,4 @@
-"""
-mapper.py
-=========
-Transmisor — Etapa 1: Mapeo de bits a símbolos complejos.
 
-Implementa desde cero las constelaciones (sin funciones de alto nivel):
-  - M-PAM : símbolos reales {-(M-1), ..., -1, +1, ..., (M-1)} / sqrt(Es_sin_norm)
-  - M-PSK : símbolos sobre el círculo unitario, ángulos 2π·p/M
-  - M-QAM : retícula cuadrada = dos PAM de sqrt(M) puntos (ejes I y Q)
-
-Todas las constelaciones se normalizan a energía promedio de símbolo Es = 1.
-
-Codificación Gray
------------------
-La tabla se indexa por la ETIQUETA (los k bits leídos como entero big-endian).
-La posición geométrica p (0 = extremo negativo / ángulo 0) recibe la etiqueta
-Gray(p) = p XOR (p >> 1), es decir:
-
-        constelación[ Gray(p) ] = punto_en_la_posición_p
-
-De esta forma, dos puntos vecinos (posiciones p y p+1) tienen etiquetas que
-difieren en UN solo bit.  (Asignar constelación[p] = punto[Gray(p)], como hacía
-la versión anterior, solo funciona cuando Gray es una involución, M ≤ 4 y
-16-QAM, y NO es Gray para 8/16-PAM, 8/16-PSK, 64/256-QAM.)
-
-Referencia: Proakis & Salehi, "Digital Communications", 5ª ed., Cap. 3 y 4.
-"""
 
 from __future__ import annotations
 

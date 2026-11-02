@@ -1,22 +1,4 @@
-"""
-spectrum.py
-===========
-RF3d — Espectro de la señal en banda base (TRANSMISIÓN) y en pasabanda
-(RECEPCIÓN, es decir, después del canal y con ruido).
 
-PSD estimada con el método de Welch implementado desde cero:
-  1. Se divide la señal en segmentos de longitud L con 50 % de solape.
-  2. Cada segmento se multiplica por una ventana de Hann.
-  3. Se promedian los periodogramas |FFT|²/(U·fs), U = Σ w².
-
-El promediado reduce la varianza del periodograma simple.  Ambas curvas se
-normalizan al máximo de la banda base (0 dB), de modo que se conservan las
-potencias relativas: una señal real pasabanda reparte su potencia en dos
-bandas (±fc), cada una con densidad pico de −6 dB respecto a la banda base.
-
-Eje de frecuencia: f/Rs  (Rs = tasa de símbolo = fs/sps).
-Marcas: bordes del espectro ±(1+α)/2·Rs en banda base y portadora ±fc.
-"""
 
 from __future__ import annotations
 

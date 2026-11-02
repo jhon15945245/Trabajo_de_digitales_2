@@ -1,13 +1,4 @@
-"""
-comparison_dialog.py
-====================
-Ventana de la tabla de entrega: diferencias de Eb/N0 entre 4PAM, 4QAM y 4PSK
-para BER = 1e-2 … 1e-7, análisis de resultados y gráficas.
 
-La tabla teórica aparece al abrir (instantánea).  El botón "Verificar por
-simulación" lanza el Monte Carlo en un hilo y agrega las columnas simuladas y
-los puntos en las gráficas.  "Exportar" guarda CSV, Markdown, análisis y PNG.
-"""
 
 from __future__ import annotations
 

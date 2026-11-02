@@ -1,18 +1,4 @@
-"""
-bandwidth.py
-============
-Métrica RF4c — Ancho de banda.
 
-Con filtro de coseno alzado, el ancho de banda de la señal PASABANDA
-(nulo a nulo, ambos lados de la portadora) es
-
-        B = R_s · (1 + α)
-
-En unidades normalizadas B/Rs = 1+α.  Si se conoce Rs [baudios], B [Hz] = Rs·(1+α).
-(En banda base la señal ocupa ±B/2.)
-
-Referencia: Proakis & Salehi, Cap. 9 (espectro de coseno alzado).
-"""
 
 from __future__ import annotations
 

@@ -1,16 +1,4 @@
-"""
-dsp.py
-======
-Utilidades de procesamiento digital de señales implementadas desde cero.
 
-Solo se usan primitivas numéricas de numpy (arreglos y FFT).  No se usa
-scipy.signal ni funciones de comunicaciones de alto nivel (RNF2).
-
-  convolve(x, h)              convolución lineal (directa o por FFT)
-  fir_filter_centered(x, h)   filtra con FIR simétrico compensando su retardo
-                              de grupo: la salida tiene la misma longitud y
-                              queda alineada con la entrada.
-"""
 
 from __future__ import annotations
 

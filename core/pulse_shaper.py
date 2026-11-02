@@ -1,30 +1,4 @@
-"""
-pulse_shaper.py
-===============
-Transmisor — Etapa 2: Conformación de pulso (pulse shaping) y filtro casado.
 
-Se usa el filtro de raíz de coseno alzado (SRRC).  TX y RX usan el mismo
-SRRC, de modo que la cascada TX⊛RX es un coseno alzado (RC) que cumple el
-criterio de Nyquist (ISI nula en los instantes de muestreo) y el filtro del
-receptor es el filtro casado (máxima SNR en el instante de decisión).
-
-Parámetros
-  alpha : factor de roll-off, 0 ≤ α ≤ 1  (ancho de banda = (1+α)·Rs)
-  span  : duración del filtro en símbolos
-  sps   : muestras por símbolo
-
-SRRC en tiempo discreto (t en unidades de T, t = n/sps):
-
-    h(t) = [ sin(π t (1-α)) + 4α t cos(π t (1+α)) ] / [ π t (1 - (4α t)²) ]
-
-  t = 0        →  h(0) = 1 - α + 4α/π
-  t = ±1/(4α)  →  h = (α/√2)·[ (1+2/π) sin(π/(4α)) + (1-2/π) cos(π/(4α)) ]
-
-Los coeficientes se normalizan a energía unitaria (Σh² = 1), de modo que el
-filtro no altera la energía de símbolo: Es = (potencia por muestra)·sps.
-
-Referencia: Proakis & Salehi, Cap. 9 (Raised cosine / square-root RC).
-"""
 
 from __future__ import annotations
 

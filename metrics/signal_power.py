@@ -1,23 +1,4 @@
-"""
-signal_power.py
-===============
-Métrica RF4d — Potencia de la señal modulada.
 
-Potencia media discreta (por muestra):   P = (1/N)·Σ|x[n]|²
-
-Para x[n] REAL en pasabanda esta fórmula ya incluye el factor ½ de la
-portadora (cos² promedia ½); NO se debe dividir otra vez por 2 (error de la
-versión anterior, que mostraba la mitad de la potencia real).
-
-Relación teórica:   P_pb = P_bb / 2,    P_bb = Es / Ts
-
-Se reporta la potencia normalizada al tiempo de símbolo (unidades de Es/Ts):
-
-        P_norm = P_por_muestra · sps        [u.e. / Ts]
-
-y, si se conoce Rs, P = P_norm · Rs  [u.e./s]  (u.e. = unidad de energía de Es).
-Teóricamente, con Es = 1: P_bb = 1 y P_pb = 0.5 (en Es/Ts).
-"""
 
 from __future__ import annotations
 

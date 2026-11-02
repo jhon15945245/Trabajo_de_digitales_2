@@ -1,25 +1,4 @@
-"""
-simulation_runner.py
-====================
-Orquestador de la simulación.  No conoce la GUI: recibe parámetros y retorna
-resultados (se puede usar en scripts y pruebas).
 
-Dos etapas (para que la interfaz responda de inmediato, RF1):
-
-  run_point(params)  → señales, constelación, ojo, espectro, métricas, BER
-                       teórica y BER puntual.  Tarda decenas de milisegundos.
-  run_curve(...)     → curva BER simulada por Monte Carlo (más lenta, con
-                       progreso y cancelación).
-  run(params)        → ambas etapas.
-
-Curva BER por Monte Carlo
--------------------------
-Para cada Eb/N0 se simulan bloques de `CURVE_BLOCK_SYMBOLS` símbolos hasta
-acumular `min_errors` errores o llegar a `max_symbols` símbolos.  Cada bloque
-usa semillas derivadas (seed, índice de punto, bloque) → resultados
-reproducibles y puntos independientes entre sí (RNF3).  Un punto sin errores
-no es "BER = 0": solo indica BER < 1/bits_simulados (se grafica como cota).
-"""
 
 from __future__ import annotations
 

@@ -1,13 +1,4 @@
-"""
-main.py
-=======
-Punto de entrada de la aplicación.
 
-Uso:
-    python main.py
-
-Requisitos: Python >= 3.9, PyQt5, matplotlib, numpy (ver requirements.txt).
-"""
 
 import sys
 import traceback

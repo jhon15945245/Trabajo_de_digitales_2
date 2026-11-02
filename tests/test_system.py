@@ -1,15 +1,4 @@
-"""
-test_system.py
-==============
-Pruebas automáticas del simulador (solo biblioteca estándar: unittest).
 
-Ejecutar desde la raíz del proyecto:
-    python -m unittest discover -s tests -v
-
-Cada prueba verifica una propiedad teórica del sistema de comunicaciones:
-mapeo Gray, energía unitaria del SRRC, ausencia de ISI, calibración del
-ruido (Eb/N0), concordancia BER simulada vs teórica, métricas y validaciones.
-"""
 
 import os
 import sys

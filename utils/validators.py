@@ -1,17 +1,4 @@
-"""
-validators.py
-=============
-Validaciones de entrada del usuario (RNF1).
 
-Todas las funciones retornan (ok, valor, mensaje):
-    ok      : True si el dato es válido.
-    valor   : dato convertido (None si no es válido).
-    mensaje : texto para el usuario (None si es válido).
-
-Así la GUI puede mostrar el mensaje sin lanzar excepciones.  El núcleo
-también las reutiliza (validate_simulation_params) para no depender de que
-la entrada provenga de la interfaz.
-"""
 
 from __future__ import annotations
 

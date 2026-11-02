@@ -1,29 +1,4 @@
-"""
-ber_calculator.py
-=================
-BER teórica (fórmulas analíticas) y BER simulada (conteo de errores).
 
-Q(x) = P(X > x), X ~ N(0,1)  =  ½·erfc(x/√2)   (erfc de la librería estándar `math`).
-
-BER teórica en AWGN con codificación Gray (k = log2 M, γb = Eb/N0 lineal):
-
-  M-PAM (exacta para M=2, aprox. Gray para M>2):
-      Pb ≈ [2(M-1)/(M·k)] · Q( √( 6·k·γb / (M²-1) ) )
-
-  M-QAM cuadrada:
-      Pb ≈ [4(1-1/√M)/k] · Q( √( 3·k·γb / (M-1) ) )
-      (cada eje es un √M-PAM; la suma de las dos ramas da el factor 4(1-1/√M)/k)
-
-  M-PSK:
-      M = 2 (BPSK, exacta):  Pb = Q( √(2·γb) )
-      M ≥ 4 (aproximación, solo errores a símbolos vecinos, Gray):
-      Pb ≈ (2/k) · Q( √(2·k·γb) · sin(π/M) )
-
-Para M=4: 4-QAM y 4-PSK dan exactamente la misma Pb = Q(√(2γb)), porque son la
-misma constelación rotada 45°.
-
-Referencia: Proakis & Salehi, Cap. 4 y 8; Simon & Alouini.
-"""
 
 from __future__ import annotations
 

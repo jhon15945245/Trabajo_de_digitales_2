@@ -1,23 +1,4 @@
-"""
-link.py
-=======
-Enlace de comunicaciones de extremo a extremo (un solo camino para TODO).
 
-    Bits → Mapper → SRRC → Modulador IQ → [Canal AWGN] → Demodulador IQ
-                                                           ↓
-    Bits ← Demapeo ← Decisor ← muestreo ← Filtro casado ← ┘
-
-Tanto el punto de operación (constelación, ojo, espectro, BER puntual) como
-cada punto de la curva BER usan EXACTAMENTE este mismo sistema (la versión
-anterior simulaba la curva en banda base y el punto en pasabanda).
-
-Relleno (padding)
------------------
-Los filtros FIR tienen respuesta al impulso larga; sin relleno, los primeros y
-últimos símbolos pierden parte de su pulso (y de su energía).  Se añaden
-`pad` símbolos nulos al inicio y al final y luego solo se evalúan los N
-símbolos reales ("región útil" / core).
-"""
 
 from __future__ import annotations
 

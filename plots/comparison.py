@@ -1,8 +1,4 @@
-"""
-comparison.py (plots)
-=====================
-Gráficas de la tabla de entrega: curvas BER comparadas y diferencias de Eb/N0.
-"""
+
 
 from __future__ import annotations
 

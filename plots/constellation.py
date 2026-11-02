@@ -1,12 +1,4 @@
-"""
-constellation.py
-================
-RF3b — Diagrama de constelación en recepción.
 
-Símbolos recibidos (después del filtro casado y del muestreo, antes del
-decisor) en el plano IQ, junto con los puntos ideales de la constelación.
-La nube alrededor de cada punto crece con el ruido (menor Eb/N0).
-"""
 
 from __future__ import annotations
 

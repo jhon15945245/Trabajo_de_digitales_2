@@ -1,19 +1,4 @@
-"""
-eye_diagram.py
-==============
-RF3a — Diagrama del ojo en recepción.
 
-Se superponen segmentos de DOS períodos de símbolo (t ∈ [-T, +T]) de la señal
-a la salida del FILTRO CASADO (tasa de muestreo completa, antes del decisor).
-El instante de muestreo es t = 0, donde el ojo debe estar abierto.
-
-(La versión anterior graficaba la señal antes del filtro casado y usaba un eje
-temporal con paso incorrecto, por lo que la línea de muestreo no caía sobre
-las muestras reales.)
-
-Para señales complejas (QAM/PSK) se superponen I (azul) y Q (naranja);
-para M-PAM solo hay información en I.
-"""
 
 from __future__ import annotations
 

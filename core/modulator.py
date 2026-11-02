@@ -1,28 +1,4 @@
-"""
-modulator.py
-============
-Modulación y demodulación en pasabanda (modulación analógica IQ).
 
-Transmisor:   x(t) = I(t)·cos(2π fc t) − Q(t)·sin(2π fc t)  = Re{ s(t)·e^{j2π fc t} }
-Receptor coherente (fase y frecuencia perfectamente sincronizadas):
-
-    r(t)·cos(2π fc t)    = I/2 + (I·cos(4π fc t) − Q·sin(4π fc t))/2
-    r(t)·(−sin(2π fc t)) = Q/2 + (términos en 2fc)
-
-Un filtro pasa-bajas elimina los términos en 2·fc y la ganancia 2 final
-compensa el factor 1/2.
-
-Diseño del LPF (corrección respecto a la versión anterior)
-----------------------------------------------------------
-El LPF debe dejar pasar TODO el espectro de la señal en banda base, que
-ocupa |f| ≤ (1+α)/2·Rs, y rechazar el término en 2·fc.  La versión anterior
-cortaba en 0.5·Rs, atenuando los bordes del espectro y generando ISI
-(EVM ≈ 0.24 incluso sin ruido).  Ahora la frecuencia de corte es
-
-        f_c,LPF = [ (1+α)/2 + LPF_MARGIN_RS ] · Rs
-
-Referencia: Proakis & Salehi, Cap. 3 (Bandpass signals) y Cap. 5.
-"""
 
 from __future__ import annotations
 

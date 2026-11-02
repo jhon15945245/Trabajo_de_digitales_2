@@ -1,14 +1,4 @@
-"""
-generar_tabla_entrega.py
-========================
-Genera la tabla de entrega del PDF (diferencias de Eb/N0 entre 4PAM, 4QAM y
-4PSK para BER = 1e-2 … 1e-7), el análisis y las gráficas, sin abrir la GUI.
 
-Uso:
-    python scripts/generar_tabla_entrega.py                 # solo teoría (instantáneo)
-    python scripts/generar_tabla_entrega.py --simular       # + verificación Monte Carlo
-    python scripts/generar_tabla_entrega.py --simular --max-simbolos 1500000 --salida resultados
-"""
 
 import argparse
 import os

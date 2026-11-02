@@ -1,24 +1,4 @@
-"""
-comparison.py
-=============
-Tabla de entrega del PDF (4PAM, 4QAM, 4PSK): diferencia de Eb/N0 entre pares
-de esquemas para BER = 1e-2 ... 1e-7, con análisis y datos para las gráficas.
 
-Método
-------
-1. TEÓRICO: para cada BER objetivo se invierte numéricamente la fórmula teórica
-   Pb(Eb/N0) (monótona decreciente) con el método de la bisección (sin scipy).
-2. SIMULADO (verificación Monte Carlo): se simula la curva BER de cada esquema
-   y se interpola (log10 BER lineal en dB) el Eb/N0 donde cruza el objetivo.
-   Solo se usan puntos con suficientes errores (MIN_RELIABLE_ERRORS); BER como
-   1e-6 o 1e-7 exigirían ≈ 1e9 bits y por eso se reportan como "n/m"
-   (no medible) en la columna simulada.  Los BER ≤ 1e-4 solo son medibles con
-   muchos símbolos por punto.
-
-Convención del PDF: las columnas son diferencias  A − B  de los Eb/N0 [dB]
-necesarios para alcanzar la misma BER.  Un valor positivo significa que A
-necesita MÁS energía por bit que B.
-"""
 
 from __future__ import annotations
 

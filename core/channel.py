@@ -1,35 +1,4 @@
-"""
-channel.py
-==========
-Canal AWGN calibrado por Eb/N0.
 
-Definiciones (todo en unidades "por muestra" con Ts = sps muestras):
-
-    P_bb  = potencia de la envolvente compleja  (E|s[n]|²)
-    Es    = P_bb · sps                  (energía por símbolo)
-    Eb    = Es / k,  k = log2(M)        (energía por bit)
-    N0    = Eb / (Eb/N0)_lineal         (densidad espectral de ruido)
-
-Varianza del ruido que produce el Eb/N0 pedido
-----------------------------------------------
-El detector (filtro casado de energía unitaria + muestreo) necesita, en cada
-componente (I y Q), una varianza de ruido de N0/2.  Como el filtro casado
-tiene energía unitaria, no modifica la varianza de un ruido blanco, por lo que:
-
-  • Señal COMPLEJA en banda base:  cada componente tiene varianza σ² = N0/2
-    (ruido complejo de potencia total N0).
-    (Error corregido: la versión anterior usaba N0/4 por componente, es decir
-    3.01 dB menos ruido del pedido.)
-
-  • Señal REAL en pasabanda:  P_bb = 2·P_pb (una portadora real tiene la
-    mitad de la potencia de su envolvente compleja).  El demodulador
-    multiplica por 2·cos y 2·sin y filtra: el ruido blanco real de varianza σ_r²
-    produce en cada rama una varianza 2·σ_r².  Igualando a N0/2:
-
-                          σ_r² = N0/4.
-
-Referencia: Proakis & Salehi, Cap. 4 (AWGN) y Cap. 8.
-"""
 
 from __future__ import annotations
 

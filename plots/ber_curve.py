@@ -1,17 +1,4 @@
-"""
-ber_curve.py
-============
-RF3c — Curva de desempeño BER vs Eb/N0.
 
-  • Línea azul continua : BER teórica (fórmula analítica).
-  • Círculos rojos      : BER simulada (Monte Carlo, mismo sistema completo).
-  • Triángulos huecos ▼ : puntos SIN errores; la BER real es menor que
-                          1/(bits simulados) (cota superior, no BER = 0).
-  • Estrella verde      : punto de operación de las demás gráficas.
-
-La simulada debe seguir a la teórica (salvo el ruido estadístico cuando hay
-pocos errores).
-"""
 
 from __future__ import annotations
 

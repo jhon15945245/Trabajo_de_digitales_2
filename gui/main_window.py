@@ -1,21 +1,4 @@
-"""
-main_window.py
-==============
-Ventana principal (QMainWindow).
 
-    MainWindow
-      ├── ControlsPanel  (izquierda) — parámetros, validación y métricas
-      └── PlotsPanel     (derecha)   — cuatro gráficas
-
-La simulación corre en un QThread (no congela la GUI) en dos etapas:
-  1. punto de operación  → ojo, constelación, espectro, métricas (inmediato)
-  2. curva BER Monte Carlo → se dibuja al terminar, con barra de progreso.
-Si el usuario cambia un parámetro mientras corre la etapa 2, la simulación en
-curso se cancela y se relanza con los parámetros nuevos.
-
-Manejo de errores (RNF1): cualquier excepción en el hilo se muestra en un
-cuadro de diálogo y la aplicación sigue funcionando.
-"""
 
 from __future__ import annotations
 

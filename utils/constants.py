@@ -1,10 +1,4 @@
-"""
-constants.py
-============
-Constantes globales del simulador de comunicaciones digitales.
-Centralizar aquí evita "magic numbers" en el resto del código.
-Convención de nombres: MAYUSCULAS_CON_GUION_BAJO para constantes.
-"""
+
 
 # ── Esquemas de modulación soportados ────────────────────────────────────────
 MODULATION_SCHEMES = ["M-PAM", "M-QAM", "M-PSK"]

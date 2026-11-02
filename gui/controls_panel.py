@@ -1,17 +1,4 @@
-"""
-controls_panel.py
-=================
-Panel de controles (lado izquierdo).
 
-Todos los parámetros numéricos se ingresan en cajas de texto y se validan con
-utils/validators.py ANTES de simular.  Si hay un valor no permitido (por
-ejemplo roll-off 1.7, M=8 en M-QAM, texto no numérico) se muestra un mensaje
-bajo el campo y, al pulsar "Simular", un cuadro de diálogo; la aplicación
-nunca se detiene ni se cae (RNF1).
-
-Actualización inmediata (RF1): con la casilla "Actualizar automáticamente"
-la simulación se relanza ~0.6 s después del último cambio válido.
-"""
 
 from __future__ import annotations
 

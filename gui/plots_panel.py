@@ -1,16 +1,4 @@
-"""
-plots_panel.py
-==============
-Panel de gráficas (lado derecho): cuadrícula 2×2 de matplotlib (RF3).
 
-  1. Diagrama del ojo (salida del filtro casado)
-  2. Diagrama de constelación en recepción
-  3. Curva BER vs Eb/N0 (teórica y simulada)
-  4. Espectro: banda base (TX) y pasabanda (RX)
-
-update_point_plots(): gráficas que dependen solo del punto de operación (rápido).
-update_curve_plot(): curva BER simulada (llega después, por Monte Carlo).
-"""
 
 from __future__ import annotations
 
