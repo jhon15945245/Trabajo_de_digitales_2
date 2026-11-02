@@ -1,96 +1,57 @@
 """
 decision.py
 ===========
-Receptor — Decisor y Demapeo.
+Receptor — Decisor y demapeo.
 
-El decisor implementa el criterio de máxima verosimilitud (ML) para
-canal AWGN, que equivale a encontrar el símbolo de la constelación
-más cercano al símbolo recibido en distancia euclidiana:
+Criterio de máxima verosimilitud (ML) en AWGN con símbolos equiprobables:
+mínima distancia euclidiana al punto de la constelación,
 
-    ŝ = argmin_{s_i ∈ C} |r - s_i|²
+        ŝ = argmin_{s_i ∈ C} |r − s_i|²
 
-Una vez elegido el símbolo más cercano, se recuperan los bits que
-lo representan (demapeo inverso de la tabla de constelación).
+El índice del punto elegido ES la etiqueta de bits (la tabla del Mapper está
+indexada por etiqueta), por lo que el demapeo es la expansión binaria del
+índice (big-endian).
 
-Referencia: Proakis, Cap. 5.1 — Maximum-Likelihood Detection.
+Referencia: Proakis & Salehi, Cap. 4 (detección ML).
 """
+
+from __future__ import annotations
 
 import numpy as np
 
+_CHUNK_ELEMENTS = 4_000_000     # tamaño máximo de la matriz N×M procesada a la vez
+
 
 class Decisor:
-    """
-    Toma decisiones símbolo a símbolo sobre los símbolos recibidos.
-
-    Parámetros
-    ----------
-    constellation : ndarray complejo — tabla de símbolos de la constelación.
-    bits_per_symbol : int — k = log2(M).
-    """
+    """Decisor por mínima distancia y demapeo a bits."""
 
     def __init__(self, constellation: np.ndarray, bits_per_symbol: int):
-        self._constellation = constellation
+        self._constellation = np.asarray(constellation)
         self._bits_per_symbol = bits_per_symbol
         self._m = len(constellation)
 
     def decide(self, received_symbols: np.ndarray) -> np.ndarray:
-        """
-        Clasificación por mínima distancia euclidiana.
-
-        Para cada símbolo recibido r, calcula |r - s_i|² para todos los
-        s_i en la constelación y devuelve el índice del más cercano.
-
-        Parámetros
-        ----------
-        received_symbols : ndarray complejo — símbolos en recepción.
-
-        Retorna
-        -------
-        decided_indices : ndarray int — índice del símbolo decidido (∈ [0, M-1]).
-        """
-        # Diferencia entre cada símbolo recibido y toda la constelación
-        # received_symbols: (N,) → (N,1); constellation: (M,) → distancias (N,M)
-        diff = received_symbols[:, np.newaxis] - self._constellation[np.newaxis, :]
-        distances_sq = np.real(diff * np.conj(diff))   # |r - s_i|²
-
-        return np.argmin(distances_sq, axis=1)
+        """Índice del símbolo más cercano (procesa por bloques para limitar memoria)."""
+        r = np.asarray(received_symbols)
+        c_re, c_im = self._constellation.real, self._constellation.imag
+        chunk = max(1, _CHUNK_ELEMENTS // self._m)
+        out = np.empty(len(r), dtype=np.int64)
+        for start in range(0, len(r), chunk):
+            seg = r[start: start + chunk]
+            d2 = ((seg.real[:, None] - c_re[None, :]) ** 2
+                  + (seg.imag[:, None] - c_im[None, :]) ** 2)
+            out[start: start + chunk] = np.argmin(d2, axis=1)
+        return out
 
     def demap(self, decided_indices: np.ndarray) -> np.ndarray:
-        """
-        Convierte índices de símbolos decididos en bits (demapeo).
-
-        Usa representación big-endian: el primer bit es el más significativo.
-
-        Parámetros
-        ----------
-        decided_indices : ndarray int — índices ∈ [0, M-1].
-
-        Retorna
-        -------
-        bits_rx : ndarray int (0/1) — bits recuperados.
-        """
+        """Índices → bits (vectorizado, big-endian: primer bit = más significativo)."""
         k = self._bits_per_symbol
-        n_symbols = len(decided_indices)
-        bits_rx = np.zeros(n_symbols * k, dtype=int)
-
-        for i, idx in enumerate(decided_indices):
-            # Convertir índice a k bits (big-endian)
-            for bit_pos in range(k):
-                bits_rx[i * k + (k - 1 - bit_pos)] = (idx >> bit_pos) & 1
-
-        return bits_rx
+        shifts = np.arange(k - 1, -1, -1)
+        bits = (decided_indices[:, None] >> shifts[None, :]) & 1
+        return bits.reshape(-1).astype(int)
 
     def decide_and_demap(self, received_symbols: np.ndarray) -> np.ndarray:
-        """
-        Atajo: decide y luego desmapea en un solo llamado.
-        """
-        indices = self.decide(received_symbols)
-        return self.demap(indices)
+        return self.demap(self.decide(received_symbols))
 
     def get_decided_symbols(self, received_symbols: np.ndarray) -> np.ndarray:
-        """
-        Retorna los símbolos de la constelación decididos (no los índices).
-        Útil para el diagrama de constelación en recepción.
-        """
-        indices = self.decide(received_symbols)
-        return self._constellation[indices]
+        return self._constellation[self.decide(received_symbols)]

@@ -1,8 +1,8 @@
 # ============================================================
 # Simulador de Comunicaciones Digitales — Dependencias
 # ============================================================
-# Instalar con:
-#   pip install -r requirements.txt
+# Instalar con:   pip install -r requirements.txt
+# Python >= 3.9
 
 # Interfaz gráfica
 PyQt5>=5.15.0
@@ -10,5 +10,6 @@ PyQt5>=5.15.0
 # Gráficas embebidas en PyQt5
 matplotlib>=3.5.0
 
-# Cálculo numérico (FFT, arrays, generación de ruido)
+# Arreglos, FFT y generación de números aleatorios (no se usa scipy ni
+# ninguna función de comunicaciones de alto nivel: RNF2)
 numpy>=1.22.0

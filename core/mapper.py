@@ -3,27 +3,39 @@ mapper.py
 =========
 Transmisor — Etapa 1: Mapeo de bits a símbolos complejos.
 
-Implementa desde cero (sin funciones de alto nivel) los constelaciones:
-  - M-PAM : símbolos reales en {-(M-1), -(M-3), ..., (M-3), (M-1)}
-  - M-PSK : símbolos en el círculo unitario, ángulos equiespaciados
-  - M-QAM : retícula cuadrada, combina dos PAM de sqrt(M) puntos
+Implementa desde cero las constelaciones (sin funciones de alto nivel):
+  - M-PAM : símbolos reales {-(M-1), ..., -1, +1, ..., (M-1)} / sqrt(Es_sin_norm)
+  - M-PSK : símbolos sobre el círculo unitario, ángulos 2π·p/M
+  - M-QAM : retícula cuadrada = dos PAM de sqrt(M) puntos (ejes I y Q)
 
-Usa codificación Gray para minimizar BER: bits adyacentes en la
-constelación difieren en un solo bit.
+Todas las constelaciones se normalizan a energía promedio de símbolo Es = 1.
 
-Referencia teórica:
-  Proakis & Salehi, "Digital Communications", 5ª ed., Cap. 6-7.
+Codificación Gray
+-----------------
+La tabla se indexa por la ETIQUETA (los k bits leídos como entero big-endian).
+La posición geométrica p (0 = extremo negativo / ángulo 0) recibe la etiqueta
+Gray(p) = p XOR (p >> 1), es decir:
+
+        constelación[ Gray(p) ] = punto_en_la_posición_p
+
+De esta forma, dos puntos vecinos (posiciones p y p+1) tienen etiquetas que
+difieren en UN solo bit.  (Asignar constelación[p] = punto[Gray(p)], como hacía
+la versión anterior, solo funciona cuando Gray es una involución, M ≤ 4 y
+16-QAM, y NO es Gray para 8/16-PAM, 8/16-PSK, 64/256-QAM.)
+
+Referencia: Proakis & Salehi, "Digital Communications", 5ª ed., Cap. 3 y 4.
 """
 
+from __future__ import annotations
+
 import numpy as np
+
 from utils.constants import RANDOM_SEED
+from utils.validators import validate_modulation_order
 
 
-def _gray_code(n: int) -> list[int]:
-    """
-    Genera los primeros n enteros en código Gray.
-    Gray(i) = i XOR (i >> 1)
-    """
+def gray_code(n: int) -> list[int]:
+    """Primeros n enteros del código Gray:  Gray(i) = i XOR (i >> 1)."""
     return [i ^ (i >> 1) for i in range(n)]
 
 
@@ -33,61 +45,47 @@ class Mapper:
 
     Parámetros
     ----------
-    scheme : str
-        Esquema de modulación: 'M-PAM', 'M-QAM' o 'M-PSK'.
-    m : int
-        Orden de la modulación (número de símbolos en la constelación).
+    scheme : 'M-PAM', 'M-QAM' o 'M-PSK'.
+    m      : orden de la modulación (símbolos de la constelación).
+
+    Lanza ValueError si el par (scheme, m) no es válido.
     """
 
     def __init__(self, scheme: str, m: int):
+        ok, m_valid, msg = validate_modulation_order(scheme, m)
+        if not ok:
+            raise ValueError(msg)
         self.scheme = scheme
-        self.m = m
-        self.bits_per_symbol = int(np.log2(m))   # k = log2(M)
+        self.m = m_valid
+        self.bits_per_symbol = int(round(np.log2(self.m)))   # k = log2(M)
         self._constellation = self._build_constellation()
 
     # ── API pública ──────────────────────────────────────────────────────────
 
     def map_bits(self, bits: np.ndarray) -> np.ndarray:
         """
-        Convierte un array de bits en símbolos complejos.
-
-        Proceso:
-          1. Agrupa bits en bloques de k = log2(M).
-          2. Convierte cada bloque a índice entero (big-endian).
-          3. Busca el símbolo en la tabla de constelación usando Gray.
-
-        Parámetros
-        ----------
-        bits : ndarray de int (0/1), longitud múltiplo de k.
-
-        Retorna
-        -------
-        symbols : ndarray complejo, longitud = len(bits) / k.
+        Agrupa los bits en bloques de k, convierte cada bloque a su etiqueta
+        entera (big-endian: el primer bit es el más significativo) y busca el
+        símbolo en la tabla.  Los bits sobrantes (si len no es múltiplo de k)
+        se descartan.
         """
         k = self.bits_per_symbol
         n_symbols = len(bits) // k
-        bits_trimmed = bits[: n_symbols * k]
-
-        # Agrupa en bloques de k bits y convierte a índice decimal
-        groups = bits_trimmed.reshape(n_symbols, k)
-        # big-endian: el primer bit es el más significativo
+        groups = np.asarray(bits[: n_symbols * k], dtype=np.int64).reshape(n_symbols, k)
         powers = 2 ** np.arange(k - 1, -1, -1)
-        indices = groups @ powers          # índice en [0, M-1]
-
-        # Mapea índice → símbolo usando la tabla (Gray aplicado en _build)
-        return self._constellation[indices]
+        labels = groups @ powers                  # etiqueta en [0, M-1]
+        return self._constellation[labels]
 
     def get_constellation(self) -> np.ndarray:
-        """Retorna la constelación completa (útil para graficar)."""
+        """Constelación completa indexada por etiqueta (copia)."""
         return self._constellation.copy()
 
     def get_bits_per_symbol(self) -> int:
         return self.bits_per_symbol
 
-    # ── Construcción de constelaciones ──────────────────────────────────────
+    # ── Construcción de constelaciones ───────────────────────────────────────
 
     def _build_constellation(self) -> np.ndarray:
-        """Despacha la construcción según el esquema."""
         builders = {
             "M-PAM": self._build_pam,
             "M-QAM": self._build_qam,
@@ -95,87 +93,58 @@ class Mapper:
         }
         return builders[self.scheme]()
 
+    @staticmethod
+    def _pam_levels(n_levels: int) -> np.ndarray:
+        """Niveles PAM sin normalizar: -(n-1), -(n-3), ..., (n-3), (n-1)."""
+        return np.array([2 * p - (n_levels - 1) for p in range(n_levels)], dtype=float)
+
+    @staticmethod
+    def _gray_permute(values_by_position: np.ndarray) -> np.ndarray:
+        """Devuelve el arreglo indexado por etiqueta Gray: out[Gray(p)] = values[p]."""
+        out = np.zeros_like(values_by_position)
+        for p, g in enumerate(gray_code(len(values_by_position))):
+            out[g] = values_by_position[p]
+        return out
+
     def _build_pam(self) -> np.ndarray:
         """
-        M-PAM: símbolos reales en {±1, ±3, ..., ±(M-1)}.
-        Escala para energía promedio unitaria: dividir entre
-        sqrt(E_s) donde E_s = (M²-1)/3.
-
-        Codificación Gray: re-ordena las amplitudes según el código Gray
-        para que palabras de código adyacentes difieran en un bit.
+        M-PAM: a_p = (2p-(M-1)) / sqrt(Es0),  Es0 = (M²-1)/3  → Es = 1.
         """
-        m = self.m
-        # Amplitudes base: -(M-1), -(M-3), ..., (M-3), (M-1)
-        amplitudes = np.array([2 * i - (m - 1) for i in range(m)], dtype=float)
-
-        # Normalización: energía promedio = 1
-        e_s = np.mean(amplitudes ** 2)
-        amplitudes /= np.sqrt(e_s)
-
-        # Aplicar permutación Gray
-        gray = _gray_code(m)
-        constellation = np.zeros(m, dtype=complex)
-        for bit_index, gray_index in enumerate(gray):
-            constellation[bit_index] = amplitudes[gray_index]
-
-        return constellation
+        levels = self._pam_levels(self.m)
+        levels = levels / np.sqrt(np.mean(levels ** 2))
+        return self._gray_permute(levels).astype(complex)
 
     def _build_qam(self) -> np.ndarray:
         """
-        M-QAM cuadrada: combina dos constelaciones PAM de sqrt(M) puntos
-        en los ejes I y Q.
-
-        Condición: M debe ser potencia de 2 con raíz entera exacta.
-
-        La codificación Gray se aplica independientemente en I y Q
-        (bits de mayor orden → I, bits de menor orden → Q).
+        M-QAM cuadrada: bits más significativos → eje I, menos significativos
+        → eje Q, cada eje con su PAM-Gray de sqrt(M) niveles.
+        Es = 2·E[PAM²]  → se normaliza para que Es = 1.
         """
-        m = self.m
-        sqrt_m = int(np.sqrt(m))
-        # Amplitudes de un PAM de sqrt(M) puntos (sin normalizar aún)
-        pam_vals = np.array([2 * i - (sqrt_m - 1) for i in range(sqrt_m)], dtype=float)
-        e_s = np.mean(pam_vals ** 2) * 2          # factor 2 por dos ejes
-        pam_vals /= np.sqrt(e_s)
+        sqrt_m = int(round(np.sqrt(self.m)))
+        levels = self._pam_levels(sqrt_m)
+        levels = levels / np.sqrt(2.0 * np.mean(levels ** 2))   # factor 2: dos ejes
+        pam_gray = self._gray_permute(levels)
 
-        gray = _gray_code(sqrt_m)
-        pam_gray = np.zeros(sqrt_m)
-        for bit_idx, g_idx in enumerate(gray):
-            pam_gray[bit_idx] = pam_vals[g_idx]
-
-        # Construir retícula: índice i → (i // sqrt_m, i % sqrt_m)
-        constellation = np.zeros(m, dtype=complex)
-        for i in range(m):
-            i_idx = i // sqrt_m    # coordenada I (bits más significativos)
-            q_idx = i % sqrt_m     # coordenada Q (bits menos significativos)
-            constellation[i] = pam_gray[i_idx] + 1j * pam_gray[q_idx]
-
+        constellation = np.zeros(self.m, dtype=complex)
+        for label in range(self.m):
+            i_label = label // sqrt_m        # bits de mayor orden → I
+            q_label = label % sqrt_m         # bits de menor orden → Q
+            constellation[label] = pam_gray[i_label] + 1j * pam_gray[q_label]
         return constellation
 
     def _build_psk(self) -> np.ndarray:
-        """
-        M-PSK: símbolos sobre el círculo unitario.
-        Ángulo del k-ésimo símbolo (con Gray): θ_k = 2π·Gray(k)/M.
-
-        La energía es constante (= 1) para todos los símbolos.
-        """
-        m = self.m
-        gray = _gray_code(m)
-        constellation = np.zeros(m, dtype=complex)
-        for bit_index, gray_index in enumerate(gray):
-            theta = 2 * np.pi * gray_index / m
-            constellation[bit_index] = np.cos(theta) + 1j * np.sin(theta)
-        return constellation
+        """M-PSK: s_p = exp(j·2π·p/M), con etiqueta Gray(p).  |s| = 1 → Es = 1."""
+        positions = np.exp(1j * 2.0 * np.pi * np.arange(self.m) / self.m)
+        return self._gray_permute(positions)
 
 
 def generate_random_bits(n_symbols: int, bits_per_symbol: int,
-                          seed: int = RANDOM_SEED) -> np.ndarray:
+                         seed=RANDOM_SEED) -> np.ndarray:
     """
-    Genera bits aleatorios reproducibles.
-    Usar siempre esta función (con seed) garantiza RNF3.
+    Genera bits aleatorios reproducibles (RNF3).  `seed` puede ser un entero o
+    una secuencia de enteros (se pasa a numpy.random.default_rng).
 
-    Retorna
-    -------
-    bits : ndarray de int (0/1), longitud = n_symbols * bits_per_symbol.
+    Retorna ndarray de enteros 0/1 de longitud n_symbols·bits_per_symbol.
     """
     rng = np.random.default_rng(seed)
     return rng.integers(0, 2, size=n_symbols * bits_per_symbol)

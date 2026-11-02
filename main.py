@@ -6,29 +6,40 @@ Punto de entrada de la aplicación.
 Uso:
     python main.py
 
-Requisitos del sistema:
-    Python >= 3.9
-    PyQt5, matplotlib, numpy  (ver requirements.txt)
+Requisitos: Python >= 3.9, PyQt5, matplotlib, numpy (ver requirements.txt).
 """
 
 import sys
-from PyQt5.QtWidgets import QApplication
+import traceback
+
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication, QMessageBox
+
 from gui.main_window import MainWindow
 
 
-def main():
-    # Habilitar escala para pantallas de alta resolución (HiDPI)
+def _install_exception_hook() -> None:
+    """Muestra cualquier excepción no capturada en un diálogo (RNF1) sin cerrar la app."""
+    def hook(exc_type, exc, tb):
+        text = "".join(traceback.format_exception(exc_type, exc, tb))
+        sys.stderr.write(text)
+        if QApplication.instance() is not None:
+            QMessageBox.critical(None, "Error inesperado",
+                                 f"{exc_type.__name__}: {exc}\n\nLa aplicación sigue activa.")
+    sys.excepthook = hook
+
+
+def main() -> None:
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
     app = QApplication(sys.argv)
     app.setApplicationName("Simulador de Comunicaciones Digitales")
-    app.setOrganizationName("Universidad - Telecomunicaciones")
+    app.setOrganizationName("Universidad del Cauca - Telecomunicaciones")
+    _install_exception_hook()
 
     window = MainWindow()
     window.show()
-
     sys.exit(app.exec_())
 
 

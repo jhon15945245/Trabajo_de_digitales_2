@@ -3,70 +3,42 @@ signal_power.py
 ===============
 Métrica RF4d — Potencia de la señal modulada.
 
-La potencia promedio de una señal discreta se calcula como:
+Potencia media discreta (por muestra):   P = (1/N)·Σ|x[n]|²
 
-    P = (1/N) · Σ |x[n]|²
+Para x[n] REAL en pasabanda esta fórmula ya incluye el factor ½ de la
+portadora (cos² promedia ½); NO se debe dividir otra vez por 2 (error de la
+versión anterior, que mostraba la mitad de la potencia real).
 
-Para una señal real en pasabanda con modulación IQ:
+Relación teórica:   P_pb = P_bb / 2,    P_bb = Es / Ts
 
-    P = (1/N) · Σ (I[n]² + Q[n]²) / 2
+Se reporta la potencia normalizada al tiempo de símbolo (unidades de Es/Ts):
 
-El factor 1/2 aparece porque la señal pasabanda real tiene la mitad
-de la potencia de la señal en banda base equivalente (la portadora
-promedia a 1/2 en el tiempo).
+        P_norm = P_por_muestra · sps        [u.e. / Ts]
 
-Referencia: Proakis, Cap. 2.4 — Signal Power.
+y, si se conoce Rs, P = P_norm · Rs  [u.e./s]  (u.e. = unidad de energía de Es).
+Teóricamente, con Es = 1: P_bb = 1 y P_pb = 0.5 (en Es/Ts).
 """
+
+from __future__ import annotations
 
 import numpy as np
 
 
-def compute_signal_power(signal: np.ndarray, is_passband: bool = False) -> float:
-    """
-    Potencia promedio de la señal.
-
-    Parámetros
-    ----------
-    signal      : ndarray — señal (real o compleja).
-    is_passband : bool    — True si la señal es pasabanda real (incluye
-                            el factor 1/2 de la portadora).
-
-    Retorna
-    -------
-    power : float — potencia promedio (unidades de amplitud²).
-    """
-    power = float(np.mean(np.abs(signal) ** 2))
-    if is_passband:
-        power /= 2.0    # compensar factor portadora
-    return power
+def compute_signal_power(signal: np.ndarray) -> float:
+    """Potencia media por muestra  E[|x|²]  (sin factores ocultos)."""
+    return float(np.mean(np.abs(signal) ** 2))
 
 
-def compute_power_dbm(signal: np.ndarray, impedance_ohm: float = 50.0,
-                      is_passband: bool = True) -> float:
-    """
-    Potencia de la señal en dBm, asumiendo una impedancia de referencia.
+def compute_normalized_power(signal: np.ndarray, sps: int) -> float:
+    """Potencia en unidades de Es/Ts:  E[|x|²]·sps."""
+    return compute_signal_power(signal) * sps
 
-    P_dBm = 10 · log10(P_W / 1e-3)
 
-    Parámetros
-    ----------
-    signal        : ndarray — señal.
-    impedance_ohm : float   — impedancia de carga (default 50 Ω, estándar RF).
-    is_passband   : bool    — si es señal pasabanda.
+def theoretical_passband_power(es: float) -> float:
+    """P_pb teórica en Es/Ts:  Es/2 (portadora real)."""
+    return es / 2.0
 
-    Retorna
-    -------
-    p_dbm : float — potencia en dBm.
 
-    Nota
-    ----
-    El resultado es simbólico/normalizado ya que la amplitud de la señal
-    simulada no tiene unidades físicas reales. Sirve para comparaciones
-    relativas entre esquemas.
-    """
-    p_linear = compute_signal_power(signal, is_passband)
-    if p_linear <= 0:
-        return float("-inf")
-    # Interpretar amplitud² como V² → P = V²/R
-    p_watts = p_linear / impedance_ohm
-    return 10.0 * np.log10(p_watts / 1e-3)
+def power_to_db(power: float) -> float:
+    """10·log10(P) (relativa a 1 u.e./Ts); -inf si P ≤ 0."""
+    return float("-inf") if power <= 0 else float(10.0 * np.log10(power))

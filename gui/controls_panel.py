@@ -1,255 +1,289 @@
 """
 controls_panel.py
 =================
-Panel de controles de la GUI (lado izquierdo).
+Panel de controles (lado izquierdo).
 
-Contiene todos los widgets de entrada:
-  - Selector de esquema de modulación (QComboBox)
-  - Selector de orden M (QSpinBox con valores válidos)
-  - Slider/SpinBox de factor roll-off α
-  - Slider/SpinBox de Eb/N0 (punto de operación)
-  - Número de símbolos
-  - Botón "Simular"
-  - Panel de métricas (solo lectura)
+Todos los parámetros numéricos se ingresan en cajas de texto y se validan con
+utils/validators.py ANTES de simular.  Si hay un valor no permitido (por
+ejemplo roll-off 1.7, M=8 en M-QAM, texto no numérico) se muestra un mensaje
+bajo el campo y, al pulsar "Simular", un cuadro de diálogo; la aplicación
+nunca se detiene ni se cae (RNF1).
 
-Valida cada entrada en tiempo real usando validators.py
-y muestra mensajes de error sin crashear la app (RNF1).
+Actualización inmediata (RF1): con la casilla "Actualizar automáticamente"
+la simulación se relanza ~0.6 s después del último cambio válido.
 """
 
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-    QSpinBox, QDoubleSpinBox, QPushButton, QGroupBox,
-    QFormLayout, QMessageBox, QSlider, QFrame,
-)
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont
+from __future__ import annotations
 
-from utils.constants import (
-    MODULATION_SCHEMES, VALID_ORDERS,
-    DEFAULT_M, DEFAULT_ROLL_OFF,
-    DEFAULT_NUM_SYMBOLS,
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QCheckBox, QComboBox, QFormLayout, QFrame, QGroupBox, QLabel, QLineEdit,
+    QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
-from utils.validators import (
-    validate_modulation_order, validate_roll_off, validate_num_symbols,
-)
+
 from core.simulation_runner import SimulationParams
+from utils.constants import (
+    CURVE_MAX_SYMBOLS, CURVE_MIN_ERRORS, DEFAULT_EB_N0_DB, DEFAULT_EB_N0_MAX,
+    DEFAULT_EB_N0_MIN, DEFAULT_EB_N0_STEPS, DEFAULT_M, DEFAULT_NUM_SYMBOLS,
+    DEFAULT_ROLL_OFF, DEFAULT_SAMPLES_PER_SYM, DEFAULT_SYMBOL_RATE_BAUD,
+    MODULATION_SCHEMES, VALID_ORDERS,
+)
+from utils.validators import validate_modulation_order, validate_simulation_params
+
+AUTO_UPDATE_DELAY_MS = 600
+ERROR_STYLE = "color: #C62828; font-size: 10px;"
+HINT_STYLE = "color: gray; font-size: 10px;"
+
+# clave de error del validador → campo donde se muestra
+_ERROR_FIELD = {"eb_n0_range": "eb_n0_min"}
 
 
 class ControlsPanel(QWidget):
     """
-    Panel izquierdo con todos los controles de parámetros.
-
     Señales
     -------
-    simulate_requested : emitida cuando el usuario presiona "Simular",
-                         lleva un SimulationParams válido.
+    simulate_requested(params, automatic) : parámetros válidos; `automatic`
+        indica que vino de la actualización automática.
+    compare_requested() : abrir la comparación 4PAM/4QAM/4PSK (tabla de entrega).
     """
 
-    simulate_requested = pyqtSignal(object)   # SimulationParams
+    simulate_requested = pyqtSignal(object, bool)
+    compare_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._edits: dict[str, QLineEdit] = {}
+        self._errors: dict[str, QLabel] = {}
+        self._auto_timer = QTimer(self)
+        self._auto_timer.setSingleShot(True)
+        self._auto_timer.setInterval(AUTO_UPDATE_DELAY_MS)
+        self._auto_timer.timeout.connect(self._on_auto_timeout)
         self._build_ui()
 
-    # ── Construcción de la interfaz ──────────────────────────────────────────
+    # ── Construcción ─────────────────────────────────────────────────────────
 
     def _build_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(12)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        outer.addWidget(scroll)
 
-        # ── Título ────────────────────────────────────────────────────────
+        inner = QWidget()
+        scroll.setWidget(inner)
+        layout = QVBoxLayout(inner)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
         title = QLabel("Parámetros del Sistema")
-        title_font = QFont()
-        title_font.setPointSize(12)
-        title_font.setBold(True)
-        title.setFont(title_font)
+        font = QFont()
+        font.setPointSize(12)
+        font.setBold(True)
+        title.setFont(font)
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
+        layout.addWidget(self._separator())
 
-        layout.addWidget(self._make_separator())
-
-        # ── Grupo: Modulación ─────────────────────────────────────────────
+        # Modulación
         mod_group = QGroupBox("Modulación")
-        mod_form  = QFormLayout(mod_group)
-
+        mod_form = QFormLayout(mod_group)
         self._scheme_combo = QComboBox()
         self._scheme_combo.addItems(MODULATION_SCHEMES)
         self._scheme_combo.setCurrentText("M-QAM")
         self._scheme_combo.currentTextChanged.connect(self._on_scheme_changed)
         mod_form.addRow("Esquema:", self._scheme_combo)
-
-        self._m_spin = QSpinBox()
-        self._m_spin.setMinimum(2)
-        self._m_spin.setMaximum(256)
-        self._m_spin.setValue(DEFAULT_M)
-        self._m_spin.setToolTip("Orden de la modulación (número de símbolos)")
-        self._m_spin.editingFinished.connect(self._validate_m)
-        mod_form.addRow("Orden M:", self._m_spin)
-
-        self._m_hint = QLabel("Valores válidos: 4, 16, 64, 256")
-        self._m_hint.setStyleSheet("color: gray; font-size: 10px;")
+        self._add_field(mod_form, "m", "Orden M:", str(DEFAULT_M),
+                        "Número de símbolos de la constelación")
+        self._m_hint = QLabel()
+        self._m_hint.setStyleSheet(HINT_STYLE)
         mod_form.addRow("", self._m_hint)
-
+        self._add_field(mod_form, "alpha", "Roll-off α:", f"{DEFAULT_ROLL_OFF:g}",
+                        "Factor de roll-off del coseno alzado: 0 ≤ α ≤ 1")
         layout.addWidget(mod_group)
 
-        # ── Grupo: Canal ──────────────────────────────────────────────────
-        ch_group = QGroupBox("Canal y Filtro")
-        ch_form  = QFormLayout(ch_group)
-
-        self._alpha_spin = QDoubleSpinBox()
-        self._alpha_spin.setRange(0.0, 1.0)
-        self._alpha_spin.setSingleStep(0.05)
-        self._alpha_spin.setValue(DEFAULT_ROLL_OFF)
-        self._alpha_spin.setDecimals(2)
-        self._alpha_spin.setToolTip("Factor roll-off del filtro coseno alzado (0 a 1)")
-        ch_form.addRow("Roll-off α:", self._alpha_spin)
-
-        self._eb_n0_spin = QDoubleSpinBox()
-        self._eb_n0_spin.setRange(-10.0, 40.0)
-        self._eb_n0_spin.setSingleStep(1.0)
-        self._eb_n0_spin.setValue(10.0)
-        self._eb_n0_spin.setDecimals(1)
-        self._eb_n0_spin.setSuffix(" dB")
-        self._eb_n0_spin.setToolTip("Relación Eb/N0 para el punto de operación")
-        ch_form.addRow("Eb/N0:", self._eb_n0_spin)
-
+        # Canal / punto de operación
+        ch_group = QGroupBox("Canal y punto de operación")
+        ch_form = QFormLayout(ch_group)
+        self._add_field(ch_form, "eb_n0_db", "Eb/N0 [dB]:", f"{DEFAULT_EB_N0_DB:g}",
+                        "Relación Eb/N0 del punto de operación (-10 a 40 dB)")
+        self._add_field(ch_form, "n_symbols", "Nº símbolos:", str(DEFAULT_NUM_SYMBOLS),
+                        "Símbolos para constelación, ojo, espectro y BER puntual")
+        self._add_field(ch_form, "symbol_rate_baud", "Rs [baudios]:",
+                        f"{DEFAULT_SYMBOL_RATE_BAUD:g}",
+                        "Tasa de símbolo (para ancho de banda en Hz y tasa de bit)")
         layout.addWidget(ch_group)
 
-        # ── Grupo: Simulación ─────────────────────────────────────────────
-        sim_group = QGroupBox("Simulación")
-        sim_form  = QFormLayout(sim_group)
+        # Curva BER
+        curve_group = QGroupBox("Curva BER (Monte Carlo)")
+        curve_form = QFormLayout(curve_group)
+        self._add_field(curve_form, "eb_n0_min", "Eb/N0 mín [dB]:", f"{DEFAULT_EB_N0_MIN:g}", "")
+        self._add_field(curve_form, "eb_n0_max", "Eb/N0 máx [dB]:", f"{DEFAULT_EB_N0_MAX:g}", "")
+        self._add_field(curve_form, "eb_n0_steps", "Nº de puntos:", str(DEFAULT_EB_N0_STEPS), "")
+        self._add_field(curve_form, "min_errors", "Errores mínimos:", str(CURVE_MIN_ERRORS),
+                        "Se simula cada punto hasta acumular estos errores")
+        self._add_field(curve_form, "max_symbols", "Máx. símbolos/punto:", str(CURVE_MAX_SYMBOLS),
+                        "Tope de símbolos por punto (BER mínima medible ≈ 1/(bits))")
+        layout.addWidget(curve_group)
 
-        self._n_sym_spin = QSpinBox()
-        self._n_sym_spin.setRange(100, 100_000)
-        self._n_sym_spin.setSingleStep(500)
-        self._n_sym_spin.setValue(DEFAULT_NUM_SYMBOLS)
-        self._n_sym_spin.setToolTip("Mayor número = BER más precisa, pero más lento")
-        sim_form.addRow("Nº símbolos:", self._n_sym_spin)
+        # Botones
+        self._auto_chk = QCheckBox("Actualizar automáticamente")
+        self._auto_chk.setChecked(True)
+        self._auto_chk.setToolTip("Relanza la simulación al cambiar un parámetro válido")
+        layout.addWidget(self._auto_chk)
 
-        layout.addWidget(sim_group)
-
-        # ── Botón Simular ─────────────────────────────────────────────────
         self._simulate_btn = QPushButton("▶  Simular")
-        self._simulate_btn.setFixedHeight(40)
+        self._simulate_btn.setFixedHeight(38)
         self._simulate_btn.setStyleSheet(
-            "QPushButton { background-color: #2196F3; color: white; "
-            "font-size: 13px; font-weight: bold; border-radius: 6px; }"
+            "QPushButton { background-color: #2196F3; color: white; font-size: 13px; "
+            "font-weight: bold; border-radius: 6px; }"
             "QPushButton:hover { background-color: #1976D2; }"
-            "QPushButton:pressed { background-color: #0D47A1; }"
-            "QPushButton:disabled { background-color: #90CAF9; }"
-        )
+            "QPushButton:disabled { background-color: #90CAF9; }")
         self._simulate_btn.clicked.connect(self._on_simulate_clicked)
         layout.addWidget(self._simulate_btn)
 
-        layout.addWidget(self._make_separator())
+        self._compare_btn = QPushButton("Comparar 4PAM / 4QAM / 4PSK (tabla de entrega)")
+        self._compare_btn.clicked.connect(self.compare_requested.emit)
+        layout.addWidget(self._compare_btn)
+        layout.addWidget(self._separator())
 
-        # ── Panel de métricas ─────────────────────────────────────────────
-        metrics_group = QGroupBox("Métricas del Sistema")
-        metrics_form  = QFormLayout(metrics_group)
-
-        self._lbl_ber      = self._make_metric_label()
-        self._lbl_spec_eff = self._make_metric_label()
-        self._lbl_sym_e    = self._make_metric_label()
-        self._lbl_bw       = self._make_metric_label()
-        self._lbl_power    = self._make_metric_label()
-
-        metrics_form.addRow("BER simulada:", self._lbl_ber)
-        metrics_form.addRow("Ef. espectral:", self._lbl_spec_eff)
-        metrics_form.addRow("Energía símbolo:", self._lbl_sym_e)
-        metrics_form.addRow("Ancho de banda:", self._lbl_bw)
-        metrics_form.addRow("Potencia señal:", self._lbl_power)
-
-        layout.addWidget(metrics_group)
+        # Métricas
+        metrics = QGroupBox("Métricas del Sistema")
+        mform = QFormLayout(metrics)
+        self._metric_labels: dict[str, QLabel] = {}
+        for key, text in (
+            ("ber", "BER simulada:"), ("ber_th", "BER teórica:"), ("evm", "EVM rms:"),
+            ("eta", "Ef. espectral:"), ("rb", "Tasa de bit Rb:"),
+            ("es", "Energía de símbolo Es:"), ("eb", "Energía de bit Eb:"),
+            ("bw", "Ancho de banda B:"), ("power", "Potencia señal modulada:"),
+        ):
+            lbl = QLabel("—")
+            lbl.setWordWrap(True)
+            lbl.setStyleSheet("font-weight: bold; color: #1565C0;")
+            self._metric_labels[key] = lbl
+            mform.addRow(text, lbl)
+        layout.addWidget(metrics)
         layout.addStretch()
 
-        # Actualizar hint al inicio
-        self._on_scheme_changed("M-QAM")
+        self._on_scheme_changed(self._scheme_combo.currentText())
 
-    # ── Slots ────────────────────────────────────────────────────────────────
-
-    def _on_scheme_changed(self, scheme: str):
-        """Actualiza el hint de órdenes válidos cuando cambia el esquema."""
-        valid = VALID_ORDERS.get(scheme, [])
-        self._m_hint.setText(f"Valores válidos: {', '.join(str(v) for v in valid)}")
-        # Ajustar M al primero válido si el actual no es válido
-        current_m = self._m_spin.value()
-        if current_m not in valid and valid:
-            self._m_spin.setValue(valid[0])
-
-    def _validate_m(self):
-        """Valida el orden M al terminar de editar."""
-        scheme = self._scheme_combo.currentText()
-        m = self._m_spin.value()
-        ok, msg = validate_modulation_order(scheme, m)
-        if not ok:
-            QMessageBox.warning(self, "Valor inválido", msg)
-            valid = VALID_ORDERS.get(scheme, [4])
-            self._m_spin.setValue(valid[0])
-
-    def _on_simulate_clicked(self):
-        """
-        Valida todos los parámetros y emite simulate_requested.
-        Si hay error de validación, muestra un QMessageBox (no crashea).
-        """
-        scheme = self._scheme_combo.currentText()
-        m      = self._m_spin.value()
-        alpha  = self._alpha_spin.value()
-        n_sym  = self._n_sym_spin.value()
-        eb_n0  = self._eb_n0_spin.value()
-
-        # Validaciones
-        ok, msg = validate_modulation_order(scheme, m)
-        if not ok:
-            QMessageBox.warning(self, "Error de parámetro", msg)
-            return
-
-        ok, msg = validate_roll_off(alpha)
-        if not ok:
-            QMessageBox.warning(self, "Error de parámetro", msg)
-            return
-
-        ok, msg = validate_num_symbols(n_sym)
-        if not ok:
-            QMessageBox.warning(self, "Error de parámetro", msg)
-            return
-
-        params = SimulationParams(
-            scheme=scheme, m=m, alpha=alpha,
-            n_symbols=n_sym, eb_n0_db=eb_n0,
-        )
-
-        self._simulate_btn.setEnabled(False)
-        self._simulate_btn.setText("⏳  Simulando...")
-        self.simulate_requested.emit(params)
-
-    # ── API pública ──────────────────────────────────────────────────────────
-
-    def update_metrics(self, results) -> None:
-        """
-        Actualiza el panel de métricas con los resultados de la simulación.
-        Llamado por MainWindow cuando termina la simulación.
-        """
-        self._lbl_ber.setText(f"{results.ber_simulated_point:.2e}")
-        self._lbl_spec_eff.setText(f"{results.spectral_efficiency:.3f} bit/s/Hz")
-        self._lbl_sym_e.setText(f"{results.symbol_energy:.4f}")
-        self._lbl_bw.setText(f"{results.bandwidth_norm:.3f} × Rs")
-        self._lbl_power.setText(f"{results.signal_power:.4f}")
-
-        self._simulate_btn.setEnabled(True)
-        self._simulate_btn.setText("▶  Simular")
-
-    # ── Helpers ──────────────────────────────────────────────────────────────
+    def _add_field(self, form: QFormLayout, key: str, label: str, default: str, tooltip: str):
+        box = QWidget()
+        v = QVBoxLayout(box)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(0)
+        edit = QLineEdit(default)
+        edit.setToolTip(tooltip)
+        err = QLabel("")
+        err.setStyleSheet(ERROR_STYLE)
+        err.setWordWrap(True)
+        err.hide()
+        v.addWidget(edit)
+        v.addWidget(err)
+        edit.textChanged.connect(self._schedule_auto)
+        edit.editingFinished.connect(self._validate_inline)
+        form.addRow(label, box)
+        self._edits[key] = edit
+        self._errors[key] = err
 
     @staticmethod
-    def _make_metric_label() -> QLabel:
-        lbl = QLabel("—")
-        lbl.setStyleSheet("font-weight: bold; color: #1565C0;")
-        return lbl
-
-    @staticmethod
-    def _make_separator() -> QFrame:
+    def _separator() -> QFrame:
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
         sep.setFrameShadow(QFrame.Sunken)
         return sep
+
+    # ── Lectura y validación de parámetros ───────────────────────────────────
+
+    def set_field_text(self, key: str, text: str) -> None:
+        self._edits[key].setText(text)
+
+    def set_scheme(self, scheme: str) -> None:
+        self._scheme_combo.setCurrentText(scheme)
+
+    def collect(self, show_dialog: bool = False):
+        """
+        Valida todos los campos.  Retorna SimulationParams o None.
+        Los mensajes se muestran bajo cada campo; con show_dialog=True además
+        se abre un QMessageBox con la lista de problemas.
+        """
+        t = {k: e.text() for k, e in self._edits.items()}
+        values, errors = validate_simulation_params(
+            self._scheme_combo.currentText(), t["m"], t["alpha"], t["n_symbols"],
+            t["eb_n0_db"], t["eb_n0_min"], t["eb_n0_max"], t["eb_n0_steps"],
+            t["symbol_rate_baud"], t["min_errors"], t["max_symbols"],
+            DEFAULT_SAMPLES_PER_SYM)
+        self._show_errors(errors)
+        if errors:
+            if show_dialog:
+                QMessageBox.warning(self, "Valores no permitidos",
+                                    "Corrija los siguientes parámetros:\n\n• "
+                                    + "\n• ".join(errors.values()))
+            return None
+        return SimulationParams(**values)
+
+    def _show_errors(self, errors: dict) -> None:
+        for lbl in self._errors.values():
+            lbl.hide()
+            lbl.setText("")
+        for key, msg in errors.items():
+            target = _ERROR_FIELD.get(key, key)
+            if target in self._errors:
+                self._errors[target].setText(msg)
+                self._errors[target].show()
+
+    # ── Slots ────────────────────────────────────────────────────────────────
+
+    def _on_scheme_changed(self, scheme: str):
+        valid = VALID_ORDERS.get(scheme, [])
+        self._m_hint.setText("Valores válidos: " + ", ".join(str(v) for v in valid))
+        ok, _, _ = validate_modulation_order(scheme, self._edits["m"].text())
+        if not ok and valid:
+            self._edits["m"].setText(str(DEFAULT_M if DEFAULT_M in valid else valid[0]))
+        self._schedule_auto()
+
+    def _validate_inline(self):
+        self.collect(show_dialog=False)
+
+    def _schedule_auto(self, *_):
+        if hasattr(self, "_auto_chk") and self._auto_chk.isChecked():
+            self._auto_timer.start()
+
+    def _on_auto_timeout(self):
+        params = self.collect(show_dialog=False)
+        if params is not None:
+            self.simulate_requested.emit(params, True)
+
+    def _on_simulate_clicked(self):
+        params = self.collect(show_dialog=True)
+        if params is not None:
+            self.simulate_requested.emit(params, False)
+
+    # ── API pública ──────────────────────────────────────────────────────────
+
+    def set_busy(self, busy: bool) -> None:
+        self._simulate_btn.setEnabled(not busy)
+        self._simulate_btn.setText("⏳  Simulando…" if busy else "▶  Simular")
+
+    def current_alpha(self, default: float = DEFAULT_ROLL_OFF) -> float:
+        params = self.collect(show_dialog=False)
+        return params.alpha if params else default
+
+    def update_metrics(self, results, params) -> None:
+        m = self._metric_labels
+        if results.errors_point == 0:
+            bound = 1.0 / max(results.bits_point, 1)
+            m["ber"].setText(f"< {bound:.1e}  (0 errores / {results.bits_point} bits)")
+        else:
+            m["ber"].setText(f"{results.ber_simulated_point:.3e}  "
+                             f"({results.errors_point} errores / {results.bits_point} bits)")
+        m["ber_th"].setText(f"{results.ber_theoretical_point:.3e}")
+        m["evm"].setText(f"{results.evm_rms:.4f}")
+        m["eta"].setText(f"{results.spectral_efficiency:.3f} bit/s/Hz")
+        m["rb"].setText(f"{results.bit_rate_bps:,.0f} bit/s")
+        m["es"].setText(f"{results.symbol_energy:.4f} u.e. (medida {results.symbol_energy_measured:.4f})")
+        m["eb"].setText(f"{results.bit_energy:.4f} u.e.")
+        m["bw"].setText(f"{results.bandwidth_norm:.3f}·Rs = {results.bandwidth_hz:,.1f} Hz")
+        m["power"].setText(f"{results.signal_power:.4f} Es/Ts (teórica {results.signal_power_theory:.4f}) "
+                           f"= {results.signal_power_db:.2f} dB;  {results.signal_power_per_s:,.1f} u.e./s")

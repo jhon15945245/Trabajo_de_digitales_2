@@ -1,146 +1,100 @@
 """
 modulator.py
 ============
-Transmisor — Etapa 3: Modulación en pasabanda (RF).
+Modulación y demodulación en pasabanda (modulación analógica IQ).
 
-Convierte la señal en banda base compleja s(t) = I(t) + jQ(t) en una
-señal real en pasabanda x(t) mediante:
+Transmisor:   x(t) = I(t)·cos(2π fc t) − Q(t)·sin(2π fc t)  = Re{ s(t)·e^{j2π fc t} }
+Receptor coherente (fase y frecuencia perfectamente sincronizadas):
 
-    x(t) = I(t)·cos(2π fc t) − Q(t)·sin(2π fc t)
+    r(t)·cos(2π fc t)    = I/2 + (I·cos(4π fc t) − Q·sin(4π fc t))/2
+    r(t)·(−sin(2π fc t)) = Q/2 + (términos en 2fc)
 
-donde fc es la frecuencia portadora (normalizada).
+Un filtro pasa-bajas elimina los términos en 2·fc y la ganancia 2 final
+compensa el factor 1/2.
 
-Esta representación corresponde a la modulación IQ exacta que usa
-cualquier sistema real de radiocomunicaciones.
+Diseño del LPF (corrección respecto a la versión anterior)
+----------------------------------------------------------
+El LPF debe dejar pasar TODO el espectro de la señal en banda base, que
+ocupa |f| ≤ (1+α)/2·Rs, y rechazar el término en 2·fc.  La versión anterior
+cortaba en 0.5·Rs, atenuando los bordes del espectro y generando ISI
+(EVM ≈ 0.24 incluso sin ruido).  Ahora la frecuencia de corte es
 
-Referencia: Proakis & Salehi, Cap. 2.5 — Bandpass Signal Representation.
+        f_c,LPF = [ (1+α)/2 + LPF_MARGIN_RS ] · Rs
+
+Referencia: Proakis & Salehi, Cap. 3 (Bandpass signals) y Cap. 5.
 """
 
+from __future__ import annotations
+
 import numpy as np
-from utils.constants import CARRIER_FREQ_NORMALIZED
+
+from utils.constants import (
+    CARRIER_FREQ_NORMALIZED, LPF_MARGIN_RS, LPF_TAPS_PER_SYMBOL,
+)
+from utils.dsp import fir_filter_centered
 
 
 class Modulator:
-    """
-    Modulación en pasabanda a partir de la señal en banda base.
-
-    Parámetros
-    ----------
-    fc_normalized : float
-        Frecuencia portadora normalizada respecto a la frecuencia de muestreo
-        (fc / fs).  Valor típico: 0.25 → fc = fs/4.
-    """
+    """Modulador IQ a pasabanda real.  fc_normalized = fc/fs (típico 0.25)."""
 
     def __init__(self, fc_normalized: float = CARRIER_FREQ_NORMALIZED):
+        if not (0.0 < fc_normalized < 0.5):
+            raise ValueError("fc normalizada debe estar en (0, 0.5) (Nyquist).")
         self.fc_norm = fc_normalized
 
     def modulate(self, baseband_signal: np.ndarray) -> np.ndarray:
-        """
-        Modula la señal en banda base compleja a pasabanda real.
-
-        Parámetros
-        ----------
-        baseband_signal : ndarray complejo
-            Señal en banda base después de la conformación de pulso.
-
-        Retorna
-        -------
-        rf_signal : ndarray real
-            Señal en pasabanda lista para transmitir por el canal.
-        """
         n = np.arange(len(baseband_signal))
-
-        # Portadora coseno para la componente I (en fase)
-        carrier_i = np.cos(2.0 * np.pi * self.fc_norm * n)
-
-        # Portadora seno para la componente Q (en cuadratura)
-        carrier_q = np.sin(2.0 * np.pi * self.fc_norm * n)
-
-        # Señal en pasabanda real
-        rf_signal = (
-            np.real(baseband_signal) * carrier_i
-            - np.imag(baseband_signal) * carrier_q
-        )
-        return rf_signal
+        phase = 2.0 * np.pi * self.fc_norm * n
+        return (np.real(baseband_signal) * np.cos(phase)
+                - np.imag(baseband_signal) * np.sin(phase))
 
 
 class Demodulator:
     """
-    Demodulación coherente: recupera la señal en banda base a partir
-    de la señal de pasabanda recibida.
+    Demodulador coherente IQ.
 
-    El receptor multiplica la señal recibida por cos y −sin de la portadora
-    (asume sincronización perfecta de fase y frecuencia) y luego aplica
-    un filtro pasa-bajas ideal para eliminar el armónico en 2fc.
-
-    Proceso:
-      r(t) · cos(2π fc t) = I(t)/2 + I(t)·cos(4π fc t)/2 − Q(t)·sin(4π fc t)/2
-      → filtro PB → I(t)/2
-
-      r(t) · (−sin(2π fc t)) = Q(t)/2 + términos en 2fc
-      → filtro PB → Q(t)/2
-
-    El factor 1/2 se cancela normalizando por 2 al final.
+    Parámetros
+    ----------
+    fc_normalized : fc/fs.
+    alpha         : roll-off de la señal (define el corte del LPF).
     """
 
-    def __init__(self, fc_normalized: float = CARRIER_FREQ_NORMALIZED):
+    def __init__(self, fc_normalized: float = CARRIER_FREQ_NORMALIZED,
+                 alpha: float = 0.35):
         self.fc_norm = fc_normalized
+        self.alpha = alpha
+
+    def lowpass_cutoff_rs(self) -> float:
+        """Frecuencia de corte del LPF en unidades de Rs."""
+        return 0.5 * (1.0 + self.alpha) + LPF_MARGIN_RS
 
     def demodulate(self, rf_signal: np.ndarray, sps: int) -> np.ndarray:
-        """
-        Demodula la señal de pasabanda y retorna la señal en banda base.
-
-        Parámetros
-        ----------
-        rf_signal : ndarray real  — señal recibida después del canal.
-        sps       : int           — muestras por símbolo (para el filtro PB).
-
-        Retorna
-        -------
-        baseband_rx : ndarray complejo — señal en banda base recuperada.
-        """
+        """Retorna la señal en banda base compleja (misma longitud que la entrada)."""
         n = np.arange(len(rf_signal))
+        phase = 2.0 * np.pi * self.fc_norm * n
+        h = self._lowpass_coefficients(sps)
 
-        # Mezcla con portadora local (demodulación coherente)
-        i_mixed = rf_signal * np.cos(2.0 * np.pi * self.fc_norm * n)
-        q_mixed = rf_signal * (-np.sin(2.0 * np.pi * self.fc_norm * n))
+        i_filtered = fir_filter_centered(rf_signal * np.cos(phase), h)
+        q_filtered = fir_filter_centered(rf_signal * (-np.sin(phase)), h)
+        return 2.0 * (i_filtered + 1j * q_filtered)
 
-        # Filtro pasa-bajas FIR de ventana rectangular simple
-        # Ancho de banda de corte: 1/(2·sps) normalizado
-        i_filtered = self._lowpass_filter(i_mixed, sps)
-        q_filtered = self._lowpass_filter(q_mixed, sps)
-
-        # Compensar el factor 1/2 de la demodulación coherente
-        baseband_rx = 2.0 * (i_filtered + 1j * q_filtered)
-        return baseband_rx
-
-    @staticmethod
-    def _lowpass_filter(signal: np.ndarray, sps: int) -> np.ndarray:
+    def _lowpass_coefficients(self, sps: int) -> np.ndarray:
         """
-        Filtro pasa-bajas FIR de ventana sinc.
-        Frecuencia de corte normalizada: fc_cut = 1/(2·sps).
-        Longitud: 4·sps + 1 coeficientes.
-
-        Implementado desde cero: convolución con la ventana sinc.
+        FIR pasa-bajas: sinc enventanada con Hann, longitud 8·sps+1,
+        ganancia DC = 1.   h[n] = 2·fc·sinc(2·fc·n) · w[n],  fc = corte/fs.
         """
-        fc_cut = 1.0 / (2.0 * sps)      # frecuencia de corte normalizada
-        n_taps = 4 * sps + 1
-        n_vec  = np.arange(-(n_taps // 2), n_taps // 2 + 1)
+        cutoff = self.lowpass_cutoff_rs() / sps          # normalizado a fs
+        if cutoff >= 0.5:
+            raise ValueError("El corte del LPF supera Nyquist: aumente sps.")
+        n_taps = LPF_TAPS_PER_SYMBOL * sps + 1
+        n_vec = np.arange(-(n_taps // 2), n_taps // 2 + 1)
 
-        # Coeficientes sinc con ventana de Hann para reducir lóbulos laterales
         with np.errstate(invalid="ignore", divide="ignore"):
             h = np.where(
                 n_vec == 0,
-                2.0 * fc_cut,
-                np.sin(2.0 * np.pi * fc_cut * n_vec) / (np.pi * n_vec),
+                2.0 * cutoff,
+                np.sin(2.0 * np.pi * cutoff * n_vec) / (np.pi * n_vec),
             )
-
-        # Ventana de Hann
         window = 0.5 - 0.5 * np.cos(2.0 * np.pi * np.arange(n_taps) / (n_taps - 1))
-        h *= window
-        h /= np.sum(h)    # normalizar ganancia DC = 1
-
-        # Convolución con compensación de retardo
-        filtered = np.convolve(signal, h)
-        delay = (n_taps - 1) // 2
-        return filtered[delay: delay + len(signal)]
+        h = h * window
+        return h / np.sum(h)

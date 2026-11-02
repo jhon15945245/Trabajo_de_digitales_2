@@ -1,0 +1,17 @@
+ANÁLISIS DE RESULTADOS — 4PAM vs 4QAM vs 4PSK (canal AWGN, filtro SRRC)
+
+1) 4PSK frente a 4QAM: la diferencia es 0.000 dB en todos los BER. Con M=4 ambas son la misma constelación (cuatro puntos equidistantes y de igual energía) girada 45°. Tienen la misma distancia mínima d_min = √(2·Es), el mismo mapeo Gray y, por tanto, la misma Pb = Q(√(2·Eb/N0)). Las curvas se superponen.
+
+2) 4PAM frente a 4QAM: 4PAM necesita entre 3.56 dB (BER=1e-2) y 3.89 dB (BER=1e-7) más de Eb/N0. En escala lineal eso es un factor de 2.27 a 2.45 en energía por bit. La razón es que 4PAM usa solo una dimensión (eje I): para la misma Es los 4 niveles {±1, ±3}/√5 quedan más juntos (d_min = 2/√5·√Es ≈ 0.894·√Es) que en 4QAM (d_min = √2·√Es ≈ 1.414·√Es). El argumento de Q es √(0.8·Eb/N0) en 4PAM frente a √(2·Eb/N0) en 4QAM: razón de argumentos² = 2.5 → 10·log10(2.5) = 3.98 dB.
+
+3) Tendencia: la diferencia crece con la exigencia de BER (3.559 → 3.889 dB) y tiende asintóticamente a 3.98 dB. A BER altos el coeficiente delante de Q (0.75 en 4PAM frente a 1 en 4QAM) todavía influye; a BER bajos domina la exponencial del argumento de Q.
+
+4) La columna 4QAM-4PAM es la anterior con el signo cambiado (solo indica quién necesita más energía): 4QAM necesita menos Eb/N0 que 4PAM.
+
+5) Compromiso: a igual Rs y roll-off, 4PAM, 4QAM y 4PSK modulados en pasabanda ocupan el mismo ancho de banda (1+α)·Rs, pero 4PAM transmite log2(4)=2 bits/símbolo con peor protección ante el ruido que 4QAM/4PSK; 4PSK además mantiene envolvente constante.
+
+6) Verificación por simulación (Monte Carlo, sistema completo con filtro SRRC, modulación y demodulación IQ): 
+   BER 1e-2: 4PAM-4QAM simulado = +3.532 dB (teórico +3.559 dB, error -0.027 dB).
+   BER 1e-3: 4PAM-4QAM simulado = +3.733 dB (teórico +3.733 dB, error -0.000 dB).
+   BER 1e-4: 4PAM-4QAM simulado = +3.907 dB (teórico +3.806 dB, error +0.100 dB).
+   Los BER marcados 'n/m' no alcanzan el mínimo de errores fiables con el tamaño Monte Carlo elegido; BER = 1e-6 y 1e-7 exigirían ≈ 1e8–1e9 bits, por lo que allí se usa la expresión teórica (validada donde sí es medible).

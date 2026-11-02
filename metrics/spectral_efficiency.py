@@ -3,40 +3,27 @@ spectral_efficiency.py
 ======================
 Métrica RF4a — Eficiencia espectral.
 
-La eficiencia espectral η mide cuántos bits por segundo se transmiten
-por cada Hz de ancho de banda:
+    η = R_b / B  [bit/s/Hz],   R_b = k·R_s = log2(M)·R_s,   B = R_s·(1+α)
 
-    η = R_b / B   [bits/s/Hz]
+    η = log2(M) / (1+α)
 
-donde:
-  R_b = k · R_s = log2(M) · (1/T_s)   — tasa de bits
-  B   = R_s · (1 + α)                  — ancho de banda de Nyquist
-                                           con filtro coseno alzado
+B = (1+α)·Rs es el ancho de banda de la señal PASABANDA (doble banda lateral)
+con filtro coseno alzado: el espectro en banda base ocupa ±(1+α)/2·Rs.  Aplica
+igual a PAM, QAM y PSK modulados en pasabanda con una sola portadora.
 
-Sustituyendo:
-    η = log2(M) / (1 + α)   [bits/s/Hz]
-
-Para α=0 (filtro ideal): η = log2(M)  (límite de Shannon para PAM).
-Para α=1 (roll-off máximo): η = log2(M) / 2.
-
-Referencia: Proakis, Cap. 9.3 — Spectral Efficiency.
+Referencia: Proakis & Salehi, Cap. 8-9.
 """
+
+from __future__ import annotations
+
+import math
 
 
 def compute_spectral_efficiency(m: int, alpha: float) -> float:
-    """
-    Calcula la eficiencia espectral del sistema.
+    """η [bit/s/Hz] = log2(M)/(1+α)."""
+    return math.log2(m) / (1.0 + alpha)
 
-    Parámetros
-    ----------
-    m     : int   — orden de modulación (número de símbolos).
-    alpha : float — factor roll-off ∈ [0, 1].
 
-    Retorna
-    -------
-    eta : float — eficiencia espectral en bits/s/Hz.
-    """
-    import math
-    k = math.log2(m)              # bits por símbolo
-    eta = k / (1.0 + alpha)       # bits/s/Hz
-    return eta
+def compute_bit_rate(m: int, symbol_rate_baud: float) -> float:
+    """R_b [bit/s] = log2(M)·R_s."""
+    return math.log2(m) * symbol_rate_baud
