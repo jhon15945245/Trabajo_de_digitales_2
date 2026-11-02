@@ -274,5 +274,116 @@ class TestValidation(unittest.TestCase):
             SimulationRunner().run_point(SimulationParams(alpha=1.7))
 
 
+def _ber_ratio(scheme, m, alpha, eb_n0, min_errors=1500, block=20000, max_blocks=12):
+    """BER simulada / BER teórica acumulando bloques hasta `min_errors` errores."""
+    link = CommLink(scheme, m, alpha)
+    n_err = n_bits = 0
+    for b in range(max_blocks):
+        if n_err >= min_errors:
+            break
+        bits = generate_random_bits(block, link.k, [21, b])
+        e, n = link.count_errors(bits, eb_n0, [22, b])
+        n_err, n_bits = n_err + e, n_bits + n
+    return (n_err / n_bits) / float(BERCalculator.ber_theoretical(scheme, m, eb_n0)), n_err
+
+
+class TestSmallRollOff(unittest.TestCase):
+    """Auditoría ronda 2 (H1): roll-off pequeño con SRRC truncado."""
+
+    def test_span_grows_when_alpha_shrinks(self):
+        from utils.constants import filter_span_for_alpha
+        self.assertEqual(filter_span_for_alpha(0.35), 20)
+        self.assertEqual(filter_span_for_alpha(0.10), 40)
+        self.assertEqual(filter_span_for_alpha(0.0), 100)
+        self.assertEqual(CommLink("M-QAM", 4, 0.0).span, 100)
+
+    def test_noiseless_isi_small_for_alpha_ge_005(self):
+        for a in (0.05, 0.10):
+            link = CommLink("M-QAM", 16, a)
+            out = link.run(generate_random_bits(2000, 4, 5), 80.0, 1)
+            evm = np.sqrt(np.mean(np.abs(out.symbols_rx - out.symbols_tx) ** 2))
+            self.assertLess(evm, 0.01, f"α={a}: EVM {evm:.4f}")
+            self.assertEqual(out.n_errors, 0)
+
+    def test_ber_matches_theory_small_alpha(self):
+        for a in (0.05, 0.10):
+            ratio, n = _ber_ratio("M-QAM", 16, a, 9.0)
+            self.assertTrue(0.88 < ratio < 1.15, f"α={a}: razón {ratio:.2f} ({n} errores)")
+
+    def test_alpha_zero_has_bounded_residual_isi(self):
+        """α = 0: un filtro finito deja ISI; se exige que sea acotada (documentado)."""
+        link = CommLink("M-QAM", 16, 0.0)
+        out = link.run(generate_random_bits(2000, 4, 5), 80.0, 1)
+        evm = np.sqrt(np.mean(np.abs(out.symbols_rx - out.symbols_tx) ** 2))
+        self.assertLess(evm, 0.06)
+        ratio, _ = _ber_ratio("M-QAM", 16, 0.0, 9.0, min_errors=800)
+        self.assertLess(ratio, 1.6)
+
+    def test_advisory_message(self):
+        from utils.validators import roll_off_advisory
+        self.assertIsNotNone(roll_off_advisory("0"))
+        self.assertIsNotNone(roll_off_advisory(0.02))
+        self.assertIsNone(roll_off_advisory(0.35))
+        self.assertIsNone(roll_off_advisory("abc"))     # el error lo informa el validador
+
+
+class TestNoiseCalibrationTheoreticalEs(unittest.TestCase):
+    """Auditoría ronda 2 (H2): Eb/N0 definido con Es teórica, no con la muestra."""
+
+    def test_variance_with_pam_and_few_symbols(self):
+        link = CommLink("M-PAM", 4, 0.35)
+        tx = link.transmit(generate_random_bits(30000, 2, 9))
+        ref = link.receive(tx, 80.0, 3).symbols_rx
+        for eb_n0_db in (3.0, 6.0):
+            r = link.receive(tx, eb_n0_db, 3).symbols_rx - ref
+            n0 = (1.0 / 2) / 10 ** (eb_n0_db / 10)          # Es teórica = 1 → Eb = 1/2
+            self.assertAlmostEqual(r.real.var() / (n0 / 2), 1.0, delta=0.05)
+
+
+class TestOwnDSP(unittest.TestCase):
+    """Auditoría ronda 2 (H4): FFT/convolución propias (numpy solo como referencia)."""
+
+    def test_fft_matches_reference(self):
+        from utils.dsp import fft, ifft
+        rng = np.random.default_rng(0)
+        for n in (1, 2, 8, 256, 4096):
+            x = rng.normal(size=n) + 1j * rng.normal(size=n)
+            np.testing.assert_allclose(fft(x), np.fft.fft(x), atol=1e-9)
+            np.testing.assert_allclose(ifft(fft(x)), x, atol=1e-9)
+        with self.assertRaises(ValueError):
+            fft(np.zeros(6))
+
+    def test_convolution_matches_reference(self):
+        from utils.dsp import _convolve_direct, _convolve_fft
+        rng = np.random.default_rng(1)
+        for nx, nh in ((50, 7), (7, 50), (1000, 161)):
+            x, h = rng.normal(size=nx), rng.normal(size=nh)
+            xc = x + 1j * rng.normal(size=nx)
+            np.testing.assert_allclose(_convolve_direct(x, h), np.convolve(x, h), atol=1e-9)
+            np.testing.assert_allclose(_convolve_fft(x, h), np.convolve(x, h), atol=1e-9)
+            np.testing.assert_allclose(_convolve_fft(xc, h), np.convolve(xc, h), atol=1e-9)
+
+    def test_spectrum_helpers(self):
+        from utils.dsp import fft_freqs, fft_shift
+        np.testing.assert_allclose(fft_freqs(16), np.fft.fftfreq(16))
+        np.testing.assert_allclose(fft_shift(np.arange(16)), np.fft.fftshift(np.arange(16)))
+
+
+class TestEyeQBranch(unittest.TestCase):
+    """Auditoría ronda 2 (H5): el ojo de una constelación real no dibuja la rama Q."""
+
+    def test_show_q_flag(self):
+        from matplotlib.figure import Figure
+        from plots.eye_diagram import plot_eye_diagram
+        rng = np.random.default_rng(2)
+        sig = rng.normal(size=800) + 1j * 0.5 * rng.normal(size=800)
+        lines = {}
+        for flag in (True, False):
+            ax = Figure().add_subplot(111)
+            plot_eye_diagram(ax, sig, 8, n_traces=20, show_q=flag)
+            lines[flag] = len(ax.lines)
+        self.assertGreater(lines[True], lines[False])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

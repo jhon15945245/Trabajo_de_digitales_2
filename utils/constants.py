@@ -48,7 +48,15 @@ MIN_ERRORS_MIN, MIN_ERRORS_MAX = 1, 10_000
 MAX_SYMBOLS_MIN, MAX_SYMBOLS_MAX = 1_000, 5_000_000
 
 # ── Filtro conformador ───────────────────────────────────────────────────────
-FILTER_SPAN = 20   # Duración del SRRC en símbolos (±10 símbolos)
+FILTER_SPAN = 20   # Duración base del SRRC en símbolos (±10 símbolos)
+
+# Un SRRC truncado deja ISI residual cuanto menor es α (las colas decaen como 1/t
+# cuando α → 0).  Se usa un span mayor para roll-offs pequeños:
+#     α ≥ 0.20 → 20 símbolos   (EVM sin ruido < 0.01)
+#     α ≥ 0.05 → 40 símbolos
+#     α <  0.05 → 100 símbolos (con α = 0 queda ISI residual: filtro finito)
+FILTER_SPAN_BY_ALPHA = ((0.20, 20), (0.05, 40), (0.0, 100))
+ROLL_OFF_ADVISORY = 0.05         # por debajo de este α la GUI muestra un aviso
 
 # ── Portadora y demodulador ──────────────────────────────────────────────────
 CARRIER_FREQ_NORMALIZED = 0.25   # fc / fs   (fc = fs/4)
@@ -58,3 +66,11 @@ LPF_TAPS_PER_SYMBOL = 8          # Longitud del LPF: 8·sps + 1 coeficientes
 # ── Comparación de esquemas (tabla de entrega) ───────────────────────────────
 BER_TARGETS = (1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7)
 COMPARISON_SCHEMES = (("4PAM", "M-PAM", 4), ("4QAM", "M-QAM", 4), ("4PSK", "M-PSK", 4))
+
+
+def filter_span_for_alpha(alpha: float) -> int:
+    """Span del SRRC (en símbolos) adecuado para el roll-off dado."""
+    for alpha_min, span in FILTER_SPAN_BY_ALPHA:
+        if alpha >= alpha_min:
+            return span
+    return FILTER_SPAN_BY_ALPHA[-1][1]

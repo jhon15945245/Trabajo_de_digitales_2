@@ -67,7 +67,8 @@ def plot_delta_bars(ax: Axes, theory: dict, sim: dict | None = None) -> None:
     ax.set_xlabel("BER objetivo", fontsize=9)
     ax.set_ylabel("Diferencia de Eb/N0 [dB]", fontsize=9)
     ax.set_title("Diferencia de Eb/N0 entre esquemas", fontsize=11, fontweight="bold")
-    ax.legend(fontsize=7, loc="center right")
+    ax.set_ylim(-4.8, 6.6)                        # espacio libre arriba para la leyenda
+    ax.legend(fontsize=7, loc="upper center", ncol=2)
     ax.grid(True, axis="y", alpha=0.3)
 
 

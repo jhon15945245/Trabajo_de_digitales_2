@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from utils.dsp import fir_filter_centered
+from utils.dsp import filter_decimate_centered, fir_filter_centered, upsample_filter_centered
 from utils.validators import validate_roll_off
 
 
@@ -60,9 +60,8 @@ class PulseShaper:
         primeros/últimos símbolos, el llamador debe rellenar con símbolos
         nulos (ver core/link.py).
         """
-        upsampled = np.zeros(len(symbols) * self.sps, dtype=complex)
-        upsampled[:: self.sps] = symbols
-        return fir_filter_centered(upsampled, self._coeffs)
+        return upsample_filter_centered(np.asarray(symbols, dtype=complex),
+                                        self._coeffs, self.sps)
 
     def get_coefficients(self) -> np.ndarray:
         return self._coeffs.copy()
@@ -110,6 +109,15 @@ class MatchedFilter:
 
     def downsample(self, filtered: np.ndarray, offset: int = 0) -> np.ndarray:
         return filtered[offset:: self.sps]
+
+    def sample_symbols(self, received: np.ndarray, start: int, count: int) -> np.ndarray:
+        """
+        Filtro casado evaluado SOLO en los instantes de símbolo start, start+sps, …
+        (count muestras).  Igual a filter(received)[start::sps][:count] pero sin
+        calcular las muestras intermedias (más rápido; no sirve para el ojo).
+        """
+        return filter_decimate_centered(received, self._shaper.get_coefficients(),
+                                        self.sps, start, count)
 
     def filter_and_downsample(self, received: np.ndarray) -> np.ndarray:
         return self.downsample(self.filter(received))

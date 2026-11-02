@@ -29,7 +29,9 @@ from utils.constants import (
     DEFAULT_ROLL_OFF, DEFAULT_SAMPLES_PER_SYM, DEFAULT_SYMBOL_RATE_BAUD,
     MODULATION_SCHEMES, VALID_ORDERS,
 )
-from utils.validators import validate_modulation_order, validate_simulation_params
+from utils.validators import (
+    roll_off_advisory, validate_modulation_order, validate_simulation_params,
+)
 
 AUTO_UPDATE_DELAY_MS = 600
 ERROR_STYLE = "color: #C62828; font-size: 10px;"
@@ -101,6 +103,11 @@ class ControlsPanel(QWidget):
         mod_form.addRow("", self._m_hint)
         self._add_field(mod_form, "alpha", "Roll-off α:", f"{DEFAULT_ROLL_OFF:g}",
                         "Factor de roll-off del coseno alzado: 0 ≤ α ≤ 1")
+        self._alpha_hint = QLabel()
+        self._alpha_hint.setStyleSheet(HINT_STYLE)
+        self._alpha_hint.setWordWrap(True)
+        mod_form.addRow("", self._alpha_hint)
+        self._edits["alpha"].textChanged.connect(self._update_alpha_hint)
         layout.addWidget(mod_group)
 
         # Canal / punto de operación
@@ -242,6 +249,9 @@ class ControlsPanel(QWidget):
         if not ok and valid:
             self._edits["m"].setText(str(DEFAULT_M if DEFAULT_M in valid else valid[0]))
         self._schedule_auto()
+
+    def _update_alpha_hint(self, text: str):
+        self._alpha_hint.setText(roll_off_advisory(text) or "")
 
     def _validate_inline(self):
         self.collect(show_dialog=False)

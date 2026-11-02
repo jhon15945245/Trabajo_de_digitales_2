@@ -14,6 +14,7 @@ update_curve_plot(): curva BER simulada (llega después, por Monte Carlo).
 
 from __future__ import annotations
 
+import numpy as np
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
 from PyQt5.QtWidgets import QVBoxLayout, QWidget
@@ -66,7 +67,10 @@ class PlotsPanel(QWidget):
 
     def update_point_plots(self, results, params) -> None:
         """Ojo, constelación, espectro y curva teórica (punto de operación)."""
-        plot_eye_diagram(self._ax_eye, results.mf_output, params.sps, n_traces=100)
+        # Constelación real (PAM, BPSK): la rama Q solo contiene ruido → no se dibuja
+        has_q = bool(np.any(np.abs(results.ideal_constellation.imag) > 1e-9))
+        plot_eye_diagram(self._ax_eye, results.mf_output, params.sps, n_traces=100,
+                         show_q=has_q)
         plot_constellation(self._ax_const, results.symbols_rx, results.ideal_constellation,
                            evm_rms=results.evm_rms)
         plot_spectrum(self._ax_spec, results.baseband_shaped, results.passband_rx,

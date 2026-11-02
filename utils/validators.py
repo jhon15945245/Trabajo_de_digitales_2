@@ -19,7 +19,7 @@ import math
 
 from utils.constants import (
     VALID_ORDERS, MODULATION_SCHEMES,
-    ROLL_OFF_MIN, ROLL_OFF_MAX, SPS_MIN, SPS_MAX,
+    ROLL_OFF_MIN, ROLL_OFF_MAX, ROLL_OFF_ADVISORY, SPS_MIN, SPS_MAX,
     NUM_SYMBOLS_MIN, NUM_SYMBOLS_MAX,
     EB_N0_LIMIT_MIN, EB_N0_LIMIT_MAX, EB_N0_STEPS_MIN, EB_N0_STEPS_MAX,
     SYMBOL_RATE_MIN, SYMBOL_RATE_MAX,
@@ -98,6 +98,19 @@ def validate_roll_off(alpha):
             f"Valor recibido: {value:g}"
         )
     return True, value, None
+
+
+def roll_off_advisory(alpha):
+    """
+    Aviso NO bloqueante para α válido pero muy pequeño.  Un filtro finito no puede
+    ser Nyquist exacto con α→0 (la sinc decae como 1/t): queda algo de ISI y la BER
+    simulada queda ligeramente sobre la teórica.  Retorna texto o None.
+    """
+    ok, value, _ = validate_roll_off(alpha)
+    if ok and value < ROLL_OFF_ADVISORY:
+        return (f"Aviso: con α < {ROLL_OFF_ADVISORY:g} el filtro finito deja ISI residual; "
+                "la BER simulada puede quedar algo por encima de la teórica.")
+    return None
 
 
 def validate_num_symbols(n):

@@ -41,6 +41,8 @@ python scripts/generar_tabla_entrega.py --simular --salida resultados
 ## Uso de la interfaz
 
 * Elija esquema, orden M (4, 16, 64, 256 en QAM; 2, 4, 8, 16 en PAM y PSK) y roll-off 0 ≤ α ≤ 1.
+  Con α < 0,05 aparece un aviso: un filtro finito no puede ser Nyquist exacto cuando α → 0 y queda ISI
+  residual (el span del SRRC crece automáticamente: 20 / 40 / 100 símbolos según α; ver `docs/TEORIA.md`).
 * Los campos se validan al instante: un valor no permitido (α = 1.7, M = 8 en QAM, texto, vacío…)
   muestra un mensaje bajo el campo y un diálogo al pulsar *Simular*; la aplicación sigue funcionando.
 * Con **Actualizar automáticamente** (por defecto) los resultados se actualizan al cambiar un
@@ -50,10 +52,12 @@ python scripts/generar_tabla_entrega.py --simular --salida resultados
 
 ## Restricción RNF2 (sin funciones de alto nivel)
 
-No se usa `scipy.signal`, `commpy`, toolboxes ni modulaciones prediseñadas.  Todo (constelaciones,
-SRRC, modulador, demodulador, LPF, canal, decisor, Welch, Q(x), inversión de Q) está implementado en
-el proyecto; de numpy solo se usan arreglos, `fft` (para convolución rápida y Welch) y el generador
-aleatorio, y `math.erfc` para Q(x).
+No se usa `scipy`, `commpy`, toolboxes ni modulaciones prediseñadas.  Todo (constelaciones,
+SRRC, modulador, demodulador, LPF, canal, decisor, **convolución, FFT radix-2**, Welch, Q(x),
+inversión de Q) está implementado en el proyecto (`utils/dsp.py`).  De numpy solo se usan arreglos
+(indexación, suma, producto, `exp`, `sin`, `cos`) y el generador aleatorio gaussiano/uniforme; de la
+biblioteca estándar, `math.erfc` para Q(x).  **No se usa `np.fft` ni `np.convolve`**; las pruebas
+(`tests/`) los emplean únicamente como referencia para validar las implementaciones propias.
 
 ## Reproducibilidad (RNF3)
 

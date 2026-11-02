@@ -24,3 +24,20 @@ Notas honestas:
   pero no se ejecutó en 3.9.
 * Con α = 0 el SRRC truncado a ±10 T conserva algo de ISI (EVM ≈ 0,1); es inherente a truncar la sinc.
 * BER = 1e-6 y 1e-7 solo pueden obtenerse con la expresión teórica (no medibles por Monte Carlo razonable).
+
+## Ronda 2 de la auditoría
+
+| ID | Gravedad | Problema | Corrección | Archivo(s) | Prueba |
+|---|---|---|---|---|---|
+| H1 | ALTO | Con α pequeño el SRRC truncado a ±10 T dejaba ISI y un piso de error (16-PAM, α=0, 40 dB: BER 7e-2) | Span adaptativo según α (20/40/100) y aviso en la GUI para α<0,05. Con α=0 queda ISI residual inherente (BER 4e-3 en ese caso) | `utils/constants.py`, `core/link.py`, `utils/validators.py`, `gui/controls_panel.py` | `TestSmallRollOff` |
+| H2 | MEDIO | El ruido se calibraba con la potencia medida en cada realización | Calibración con Es teórica de la constelación | `core/link.py` | `TestNoiseCalibrationTheoreticalEs` |
+| H4 | MEDIO | Se afirmaba "desde cero" pero se usaban `np.convolve` y `np.fft` | FFT radix-2, convolución directa y por FFT propias; Welch sin `np.fft`; versiones polifásicas para rapidez | `utils/dsp.py`, `plots/spectrum.py`, `core/pulse_shaper.py` | `TestOwnDSP` |
+| H5 | BAJO | El ojo de PAM/BPSK dibujaba la rama Q (solo ruido) | `show_q` explícito; la GUI no la dibuja con constelaciones reales | `plots/eye_diagram.py`, `gui/plots_panel.py` | `TestEyeQBranch` |
+| H7 | BAJO | Definiciones de B y η sin justificar | Tabla de decisiones en `docs/TEORIA.md` §5 | `docs/TEORIA.md` | — |
+
+Notas honestas:
+* α = 0 sigue teniendo ISI residual (no se puede eliminar con un filtro finito).
+* H3 (BER 1e-5…1e-7 no medibles por Monte Carlo) no se "corrige": es un límite físico del método y
+  está explicado; esas filas de la tabla se obtienen con la expresión teórica.
+* El código es algo más lento que con `np.convolve` (curva por defecto ≈ 6 s frente a ≈ 3 s) por usar
+  convolución propia.

@@ -54,3 +54,15 @@ AWGN.  La distancia mínima entre símbolos fija entonces Q(d_min/√(2N0)).
 | ¿Qué es Gray y por qué importa? | Vecinos difieren en 1 bit: un error de símbolo al vecino cuesta 1 bit; las fórmulas de BER lo asumen. |
 | ¿Por qué Eb/N0 y no SNR? | Permite comparar esquemas con distinto k a igual energía por bit. |
 | ¿Cómo se pasa de dB a lineal? | γ = 10^(dB/10); 3,01 dB ≈ factor 2. |
+
+## 5. Límites conocidos y decisiones de diseño (para la sustentación)
+
+| Tema | Decisión | Justificación |
+|---|---|---|
+| Span del SRRC | 20 símbolos si α ≥ 0,2; 40 si α ≥ 0,05; 100 si α < 0,05 | La cola del SRRC decae como 1/t cuando α → 0; truncarla deja ISI. EVM sin ruido: α=0,05 → 0,005 (span 40); α=0,10 → 0,001 |
+| α = 0 | Se permite, con ISI residual acotada (EVM ≈ 0,045) | Un filtro de longitud finita no puede ser Nyquist con α=0. La BER simulada queda por encima de la teórica (≈ ×1,2 en 4/16-QAM, mayor en órdenes altos). Ventanear el SRRC empeoró el resultado (se probó con Hann) |
+| Calibración de Eb/N0 | Con Es **teórica** de la constelación (Es = 1) | Así Eb/N0 no depende de la muestra aleatoria. Con SRRC de energía unitaria: P_bb = Es/sps y P_pb = P_bb/2 |
+| Ancho de banda | B = Rs·(1+α), señal PASABANDA (doble banda lateral, nulo a nulo) | El enunciado pide espectro en pasabanda. En banda base el espectro ocupa ±B/2 |
+| Eficiencia espectral | η = log2(M)/(1+α) | Igual para PAM, QAM y PSK modulados en pasabanda con una portadora. Con M-PAM en banda base (sin portadora) η valdría el doble |
+| Monte Carlo | BER mínima medible ≈ 1/(bits simulados) | BER 1e-6 y 1e-7 exigirían ≈ 1e8–1e9 bits; ahí se usa la expresión teórica, validada donde sí es medible |
+| FFT / convolución | Implementadas en `utils/dsp.py` (radix-2 y directa) | RNF2. Directa para filtros ≤ 400 coeficientes (más rápida), FFT para más |

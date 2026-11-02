@@ -39,7 +39,12 @@ def eye_segments(signal: np.ndarray, sps: int, n_traces: int = 100) -> np.ndarra
 
 
 def plot_eye_diagram(ax: Axes, signal: np.ndarray, sps: int, n_traces: int = 100,
-                     title: str = "Diagrama del Ojo") -> None:
+                     title: str = "Diagrama del Ojo", show_q: bool | None = None) -> None:
+    """
+    show_q : True/False fuerza dibujar o no la rama Q.  None (por defecto) la dibuja
+             solo si la señal tiene energía apreciable en Q.  La GUI pasa False
+             para constelaciones reales (PAM, BPSK), donde Q es solo ruido.
+    """
     ax.clear()
     t = eye_time_axis(sps)
     segs_i = eye_segments(np.real(signal), sps, n_traces)
@@ -47,7 +52,10 @@ def plot_eye_diagram(ax: Axes, signal: np.ndarray, sps: int, n_traces: int = 100
         ax.plot(t, seg, color="#1f77b4", alpha=0.18, linewidth=0.8)
 
     handles = [Line2D([0], [0], color="#1f77b4", label="I")]
-    if np.max(np.abs(np.imag(signal))) > 1e-9 and np.std(np.imag(signal)) > 0.05 * np.std(np.real(signal)):
+    if show_q is None:
+        show_q = bool(np.max(np.abs(np.imag(signal))) > 1e-9
+                      and np.std(np.imag(signal)) > 0.05 * np.std(np.real(signal)))
+    if show_q:
         for seg in eye_segments(np.imag(signal), sps, n_traces):
             ax.plot(t, seg, color="#ff7f0e", alpha=0.18, linewidth=0.8)
         handles.append(Line2D([0], [0], color="#ff7f0e", label="Q"))

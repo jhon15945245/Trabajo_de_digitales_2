@@ -23,6 +23,8 @@ from __future__ import annotations
 import numpy as np
 from matplotlib.axes import Axes
 
+from utils.dsp import fft, fft_freqs, fft_shift, next_power_of_two
+
 
 def welch_psd(signal: np.ndarray, nperseg: int | None = None, overlap: float = 0.5):
     """
@@ -33,7 +35,7 @@ def welch_psd(signal: np.ndarray, nperseg: int | None = None, overlap: float = 0
     n = len(x)
     if nperseg is None:
         nperseg = 1 << max(8, int(np.floor(np.log2(max(n // 16, 256)))))
-    nperseg = min(nperseg, n)
+    nperseg = min(nperseg, next_power_of_two(n + 1) // 2)   # potencia de 2 ≤ n (FFT radix-2)
     step = max(1, int(nperseg * (1.0 - overlap)))
 
     w = 0.5 - 0.5 * np.cos(2.0 * np.pi * np.arange(nperseg) / (nperseg - 1))
@@ -43,10 +45,10 @@ def welch_psd(signal: np.ndarray, nperseg: int | None = None, overlap: float = 0
     count = 0
     for start in range(0, n - nperseg + 1, step):
         seg = x[start: start + nperseg] * w
-        acc += np.abs(np.fft.fft(seg)) ** 2 / u
+        acc += np.abs(fft(seg)) ** 2 / u
         count += 1
-    psd = np.fft.fftshift(acc / max(count, 1))
-    freqs = np.fft.fftshift(np.fft.fftfreq(nperseg))
+    psd = fft_shift(acc / max(count, 1))
+    freqs = fft_shift(fft_freqs(nperseg))
     return freqs, psd
 
 

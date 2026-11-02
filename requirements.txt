@@ -10,6 +10,6 @@ PyQt5>=5.15.0
 # Gráficas embebidas en PyQt5
 matplotlib>=3.5.0
 
-# Arreglos, FFT y generación de números aleatorios (no se usa scipy ni
+# Arreglos y generación de números aleatorios (no se usa scipy, np.fft ni
 # ninguna función de comunicaciones de alto nivel: RNF2)
 numpy>=1.22.0

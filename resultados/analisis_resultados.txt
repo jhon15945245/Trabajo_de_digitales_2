@@ -11,7 +11,7 @@ ANÁLISIS DE RESULTADOS — 4PAM vs 4QAM vs 4PSK (canal AWGN, filtro SRRC)
 5) Compromiso: a igual Rs y roll-off, 4PAM, 4QAM y 4PSK modulados en pasabanda ocupan el mismo ancho de banda (1+α)·Rs, pero 4PAM transmite log2(4)=2 bits/símbolo con peor protección ante el ruido que 4QAM/4PSK; 4PSK además mantiene envolvente constante.
 
 6) Verificación por simulación (Monte Carlo, sistema completo con filtro SRRC, modulación y demodulación IQ): 
-   BER 1e-2: 4PAM-4QAM simulado = +3.532 dB (teórico +3.559 dB, error -0.027 dB).
-   BER 1e-3: 4PAM-4QAM simulado = +3.733 dB (teórico +3.733 dB, error -0.000 dB).
-   BER 1e-4: 4PAM-4QAM simulado = +3.907 dB (teórico +3.806 dB, error +0.100 dB).
+   BER 1e-2: 4PAM-4QAM simulado = +3.559 dB (teórico +3.559 dB, error +0.000 dB).
+   BER 1e-3: 4PAM-4QAM simulado = +3.717 dB (teórico +3.733 dB, error -0.016 dB).
+   BER 1e-4: 4PAM-4QAM simulado = +3.916 dB (teórico +3.806 dB, error +0.109 dB).
    Los BER marcados 'n/m' no alcanzan el mínimo de errores fiables con el tamaño Monte Carlo elegido; BER = 1e-6 y 1e-7 exigirían ≈ 1e8–1e9 bits, por lo que allí se usa la expresión teórica (validada donde sí es medible).
