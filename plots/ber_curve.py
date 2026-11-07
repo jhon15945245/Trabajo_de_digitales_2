@@ -1,17 +1,4 @@
-"""
-ber_curve.py
-============
-RF3c — Curva de desempeño BER vs Eb/N0.
-
-  • Línea azul continua : BER teórica (fórmula analítica).
-  • Círculos rojos      : BER simulada (Monte Carlo, mismo sistema completo).
-  • Triángulos huecos ▼ : puntos SIN errores; la BER real es menor que
-                          1/(bits simulados) (cota superior, no BER = 0).
-  • Estrella verde      : punto de operación de las demás gráficas.
-
-La simulada debe seguir a la teórica (salvo el ruido estadístico cuando hay
-pocos errores).
-"""
+"""RF3c — Curva de desempeño BER vs Eb/N0."""
 
 from __future__ import annotations
 
@@ -24,7 +11,8 @@ def plot_ber_curve(ax: Axes, eb_n0_db: np.ndarray, ber_theoretical: np.ndarray,
                    scheme: str = "", m: int = 0,
                    errors: np.ndarray | None = None,
                    bits: np.ndarray | None = None,
-                   operating_point: tuple[float, float] | None = None) -> None:
+                   operating_point: tuple | None = None) -> None:
+    """Dibuja BER teórica y simulada, puntos sin errores y punto de operación."""
     ax.clear()
     name = f"{scheme} M={m}" if scheme else ""
     ax.semilogy(eb_n0_db, ber_theoretical, "b-", linewidth=2,
@@ -42,9 +30,14 @@ def plot_ber_curve(ax: Axes, eb_n0_db: np.ndarray, ber_theoretical: np.ndarray,
                 ax.semilogy(np.asarray(eb_n0_db)[zero], 1.0 / np.asarray(bits)[zero], "v",
                             mfc="none", mec="red", markersize=7, label="Sin errores (BER < 1/bits)")
 
-    if operating_point is not None and operating_point[1] > 0:
-        ax.semilogy([operating_point[0]], [operating_point[1]], "g*", markersize=12,
-                    label="Punto de operación")
+    if operating_point is not None:
+        op_x, op_ber = operating_point[0], operating_point[1]
+        op_bits = operating_point[2] if len(operating_point) > 2 else 0
+        if op_ber > 0:
+            ax.semilogy([op_x], [op_ber], "g*", markersize=12, label="Punto de operación")
+        elif op_bits > 0:
+            ax.semilogy([op_x], [1.0 / op_bits], "v", mfc="none", mec="green", mew=1.8,
+                        markersize=10, label="Punto de operación (0 errores, BER < 1/bits)")
 
     ax.set_title("Curva de desempeño BER vs Eb/N0", fontsize=11, fontweight="bold")
     ax.set_xlabel("Eb/N0 [dB]", fontsize=9)

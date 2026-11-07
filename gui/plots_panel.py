@@ -1,16 +1,4 @@
-"""
-plots_panel.py
-==============
-Panel de gráficas (lado derecho): cuadrícula 2×2 de matplotlib (RF3).
-
-  1. Diagrama del ojo (salida del filtro casado)
-  2. Diagrama de constelación en recepción
-  3. Curva BER vs Eb/N0 (teórica y simulada)
-  4. Espectro: banda base (TX) y pasabanda (RX)
-
-update_point_plots(): gráficas que dependen solo del punto de operación (rápido).
-update_curve_plot(): curva BER simulada (llega después, por Monte Carlo).
-"""
+"""Panel de gráficas (lado derecho): cuadrícula 2×2 de matplotlib (RF3)."""
 
 from __future__ import annotations
 
@@ -27,6 +15,7 @@ from utils.constants import CARRIER_FREQ_NORMALIZED
 
 
 class PlotsPanel(QWidget):
+    """Cuadrícula 2×2 con ojo, constelación, curva BER y espectro (RF3)."""
     def __init__(self, parent=None):
         super().__init__(parent)
         self._build_ui()
@@ -67,7 +56,6 @@ class PlotsPanel(QWidget):
 
     def update_point_plots(self, results, params) -> None:
         """Ojo, constelación, espectro y curva teórica (punto de operación)."""
-        # Constelación real (PAM, BPSK): la rama Q solo contiene ruido → no se dibuja
         has_q = bool(np.any(np.abs(results.ideal_constellation.imag) > 1e-9))
         plot_eye_diagram(self._ax_eye, results.mf_output, params.sps, n_traces=100,
                          show_q=has_q)
@@ -82,7 +70,7 @@ class PlotsPanel(QWidget):
             self._ax_ber, results.eb_n0_array, results.ber_theoretical,
             results.ber_simulated, scheme=params.scheme, m=params.m,
             errors=results.curve_errors, bits=results.curve_bits,
-            operating_point=(params.eb_n0_db, results.ber_simulated_point))
+            operating_point=(params.eb_n0_db, results.ber_simulated_point, results.bits_point))
         self._redraw()
 
     def update_plots(self, results, params) -> None:

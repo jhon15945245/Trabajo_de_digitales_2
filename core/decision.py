@@ -1,25 +1,10 @@
-"""
-decision.py
-===========
-Receptor — Decisor y demapeo.
-
-Criterio de máxima verosimilitud (ML) en AWGN con símbolos equiprobables:
-mínima distancia euclidiana al punto de la constelación,
-
-        ŝ = argmin_{s_i ∈ C} |r − s_i|²
-
-El índice del punto elegido ES la etiqueta de bits (la tabla del Mapper está
-indexada por etiqueta), por lo que el demapeo es la expansión binaria del
-índice (big-endian).
-
-Referencia: Proakis & Salehi, Cap. 4 (detección ML).
-"""
+"""Receptor — Decisor y demapeo."""
 
 from __future__ import annotations
 
 import numpy as np
 
-_CHUNK_ELEMENTS = 4_000_000     # tamaño máximo de la matriz N×M procesada a la vez
+_CHUNK_ELEMENTS = 4_000_000
 
 
 class Decisor:

@@ -1,23 +1,4 @@
-"""
-link.py
-=======
-Enlace de comunicaciones de extremo a extremo (un solo camino para TODO).
-
-    Bits → Mapper → SRRC → Modulador IQ → [Canal AWGN] → Demodulador IQ
-                                                           ↓
-    Bits ← Demapeo ← Decisor ← muestreo ← Filtro casado ← ┘
-
-Tanto el punto de operación (constelación, ojo, espectro, BER puntual) como
-cada punto de la curva BER usan EXACTAMENTE este mismo sistema (la versión
-anterior simulaba la curva en banda base y el punto en pasabanda).
-
-Relleno (padding)
------------------
-Los filtros FIR tienen respuesta al impulso larga; sin relleno, los primeros y
-últimos símbolos pierden parte de su pulso (y de su energía).  Se añaden
-`pad` símbolos nulos al inicio y al final y luego solo se evalúan los N
-símbolos reales ("región útil" / core).
-"""
+"""Enlace extremo a extremo: transmisor, canal AWGN y receptor en un solo camino."""
 
 from __future__ import annotations
 
@@ -43,11 +24,11 @@ class LinkOutput:
     bits_rx: np.ndarray = field(default_factory=lambda: np.array([]))
     symbols_tx: np.ndarray = field(default_factory=lambda: np.array([]))
     symbols_rx: np.ndarray = field(default_factory=lambda: np.array([]))
-    baseband_tx: np.ndarray = field(default_factory=lambda: np.array([]))   # tras SRRC
-    passband_tx: np.ndarray = field(default_factory=lambda: np.array([]))   # tras modulación
-    passband_rx: np.ndarray = field(default_factory=lambda: np.array([]))   # tras canal
-    baseband_rx: np.ndarray = field(default_factory=lambda: np.array([]))   # tras demodulación
-    mf_output: np.ndarray = field(default_factory=lambda: np.array([]))     # tras filtro casado (tasa completa)
+    baseband_tx: np.ndarray = field(default_factory=lambda: np.array([]))
+    passband_tx: np.ndarray = field(default_factory=lambda: np.array([]))
+    passband_rx: np.ndarray = field(default_factory=lambda: np.array([]))
+    baseband_rx: np.ndarray = field(default_factory=lambda: np.array([]))
+    mf_output: np.ndarray = field(default_factory=lambda: np.array([]))
     n_errors: int = 0
     n_bits: int = 0
 
@@ -65,9 +46,9 @@ class CommLink:
         if not ok:
             raise ValueError(msg)
 
-        self.mapper = Mapper(scheme, m)                    # valida scheme y m
+        self.mapper = Mapper(scheme, m)
         self.scheme, self.m, self.alpha = scheme, self.mapper.m, alpha
-        if span is None:                                   # span según α (ver constants.py)
+        if span is None:
             span = filter_span_for_alpha(alpha)
         self.sps, self.span = sps, span
         self.k = self.mapper.get_bits_per_symbol()
@@ -77,10 +58,8 @@ class CommLink:
         self.modulator = Modulator(fc_norm)
         self.demodulator = Demodulator(fc_norm, alpha)
         self.decisor = Decisor(self.mapper.get_constellation(), self.k)
-        # símbolos nulos a cada lado: retardo SRRC + retardo LPF + margen
         self.pad = span // 2 + 6
 
-    # ── Transmisor ───────────────────────────────────────────────────────────
 
     def transmit(self, bits: np.ndarray) -> LinkOutput:
         """Mapeo → conformación → modulación (sin canal)."""
@@ -99,30 +78,19 @@ class CommLink:
     def _core(self, n_symbols: int) -> slice:
         return slice(self.pad * self.sps, (self.pad + n_symbols) * self.sps)
 
-    # ── Canal + receptor ─────────────────────────────────────────────────────
 
     def receive(self, tx: LinkOutput, eb_n0_db: float, noise_seed,
                 full_rate: bool = True) -> LinkOutput:
-        """
-        Canal AWGN → demodulación → filtro casado → muestreo → decisor.
-
-        full_rate=False (Monte Carlo): el filtro casado se evalúa solo en los
-        instantes de símbolo (mismo resultado en symbols_rx; mf_output queda vacío).
-        """
+        """Canal AWGN → demodulación → filtro casado → muestreo → decisor."""
         n_sym = len(tx.symbols_tx)
         core = self._core(n_sym)
 
-        # Calibración con la Es TEÓRICA de la constelación (no con la potencia medida
-        # en esta realización): Eb/N0 queda definido por la constelación y no varía
-        # con la muestra aleatoria.  SRRC de energía unitaria → P_bb = Es/sps y, al
-        # ser la portadora real, P_pb = P_bb/2.
         es_theory = float(np.mean(np.abs(self.mapper.get_constellation()) ** 2))
         p_pb = es_theory / (2.0 * self.sps)
         channel = AWGNChannel(noise_seed)
         passband_rx = channel.transmit(tx.passband_tx, eb_n0_db, self.k, self.sps,
                                        signal_power=p_pb)
         baseband_rx = self.demodulator.demodulate(passband_rx, self.sps)
-        # símbolo j (con relleno) está en la muestra j·sps
         if full_rate:
             mf_full = self.matched.filter(baseband_rx)
             symbols_rx = mf_full[core][:: self.sps]

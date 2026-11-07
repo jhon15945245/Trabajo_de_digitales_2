@@ -1,21 +1,4 @@
-"""
-dsp.py
-======
-Utilidades de procesamiento digital de señales implementadas desde cero (RNF2).
-
-Solo se usan arreglos de numpy (indexación, suma, producto, exp).  NO se usan
-np.convolve, np.fft.*, scipy.signal ni funciones de comunicaciones.
-
-  fft(x), ifft(X)             FFT radix-2 (Cooley-Tukey iterativa, vectorizada)
-  fft_shift(x), fft_freqs(n)  utilidades de espectro (centrado y eje de frecuencia)
-  convolve(x, h)              convolución lineal (directa o por FFT)
-  fir_filter_centered(x, h)   filtra con FIR simétrico compensando su retardo
-                              de grupo: la salida tiene la misma longitud y
-                              queda alineada con la entrada.
-  upsample_filter_centered    sobremuestreo ×sps + filtrado (polifásico: no
-                              multiplica por los ceros insertados).
-  filter_decimate_centered    filtrado evaluado solo cada sps muestras.
-"""
+"""Utilidades de procesamiento digital de señales implementadas desde cero (RNF2)."""
 
 from __future__ import annotations
 
@@ -23,12 +6,8 @@ from functools import lru_cache
 
 import numpy as np
 
-# Con filtros cortos la convolución directa (vectorizada) es más rápida que la FFT;
-# a partir de este nº de coeficientes se usa la FFT (medido: cruce ≈ 400 coeficientes).
 _DIRECT_MAX_TAPS = 400
 
-
-# ── FFT radix-2 ──────────────────────────────────────────────────────────────
 
 def _is_power_of_two(n: int) -> bool:
     return n >= 1 and (n & (n - 1)) == 0
@@ -57,11 +36,7 @@ def _twiddles(size: int) -> np.ndarray:
 
 
 def fft(x: np.ndarray) -> np.ndarray:
-    """
-    DFT por FFT radix-2 decimación en el tiempo:
-        X[k] = Σ_n x[n]·exp(-j2πkn/N),   N = 2^b.
-    En cada etapa se combinan pares (a, b·W):  (a + bW, a − bW).
-    """
+    """DFT por FFT radix-2 decimación en el tiempo: X[k] = Σ_n x[n]·exp(-j2πkn/N), N = 2^b."""
     a = np.asarray(x, dtype=complex)
     n = len(a)
     if not _is_power_of_two(n):
@@ -81,7 +56,7 @@ def fft(x: np.ndarray) -> np.ndarray:
 
 
 def ifft(spectrum: np.ndarray) -> np.ndarray:
-    """IFFT:  x = conj( FFT( conj(X) ) ) / N."""
+    """IFFT: x = conj( FFT( conj(X) ) ) / N."""
     s = np.asarray(spectrum, dtype=complex)
     return np.conj(fft(np.conj(s))) / len(s)
 
@@ -98,13 +73,8 @@ def fft_freqs(n: int) -> np.ndarray:
     return k / n
 
 
-# ── Convolución ──────────────────────────────────────────────────────────────
-
 def _convolve_direct(x: np.ndarray, h: np.ndarray) -> np.ndarray:
-    """
-    Convolución lineal directa  y[n] = Σ_k h[k]·x[n-k]  (O(N·L)).
-    Se acumula h[k]·x desplazado k muestras (el bucle recorre la secuencia corta).
-    """
+    """Convolución lineal directa y[n] = Σ_k h[k]·x[n-k] (O(N·L))."""
     if len(h) > len(x):
         x, h = h, x
     dtype = np.result_type(x.dtype, h.dtype, np.float64)
@@ -115,10 +85,7 @@ def _convolve_direct(x: np.ndarray, h: np.ndarray) -> np.ndarray:
 
 
 def _convolve_fft(x: np.ndarray, h: np.ndarray) -> np.ndarray:
-    """
-    Convolución lineal por FFT (teorema de convolución):
-        y = IFFT( FFT(x, N) · FFT(h, N) ),   N ≥ len(x)+len(h)-1  (potencia de 2)
-    """
+    """Convolución lineal por FFT: y = IFFT(FFT(x)·FFT(h))."""
     n_out = len(x) + len(h) - 1
     n_fft = next_power_of_two(n_out)
     xp = np.zeros(n_fft, dtype=complex)
@@ -141,26 +108,14 @@ def convolve(x: np.ndarray, h: np.ndarray) -> np.ndarray:
 
 
 def fir_filter_centered(x: np.ndarray, h: np.ndarray) -> np.ndarray:
-    """
-    Filtra x con el FIR simétrico h (longitud impar) compensando el retardo
-    de grupo (len(h)-1)/2 muestras.  La salida tiene len(x) muestras y la
-    muestra n de la salida corresponde a la muestra n de la entrada.
-    """
+    """Filtra x con el FIR simétrico h (longitud impar) compensando el retardo de grupo (len(h)-1)/2 muestras."""
     delay = (len(h) - 1) // 2
     y = convolve(x, h)
     return y[delay: delay + len(x)]
 
 
 def upsample_filter_centered(symbols: np.ndarray, h: np.ndarray, sps: int) -> np.ndarray:
-    """
-    Equivale a  fir_filter_centered( s↑sps , h )  donde s↑sps inserta (sps-1)
-    ceros entre símbolos, pero sin operar sobre los ceros:
-
-        y[j·sps + k] += h[k]·s[j]     para cada coeficiente k.
-
-    La salida tiene len(symbols)·sps muestras y el símbolo j queda centrado en
-    la muestra j·sps.
-    """
+    """Sobremuestrea y filtra en un solo paso, equivalente a insertar ceros y filtrar."""
     s = np.asarray(symbols)
     n_sym = len(s)
     dtype = np.result_type(s.dtype, np.asarray(h).dtype, np.float64)
@@ -173,23 +128,15 @@ def upsample_filter_centered(symbols: np.ndarray, h: np.ndarray, sps: int) -> np
 
 def filter_decimate_centered(x: np.ndarray, h: np.ndarray, sps: int,
                              start: int, count: int) -> np.ndarray:
-    """
-    Salidas  y_c[start + j·sps],  j = 0 … count-1,  del filtrado centrado
-    (equivale a fir_filter_centered(x, h)[start::sps][:count], pero solo se
-    calculan las muestras necesarias):
-
-        y_c[n] = Σ_k h[k]·x[n + delay − k]
-
-    Las muestras de x fuera de rango se consideran cero.
-    """
+    """Filtra y submuestrea solo en los instantes de símbolo."""
     x = np.asarray(x)
     delay = (len(h) - 1) // 2
     dtype = np.result_type(x.dtype, np.asarray(h).dtype, np.float64)
     out = np.zeros(count, dtype=dtype)
     for k, hk in enumerate(h):
-        base = start + delay - k                       # índice de x para j = 0
-        j_lo = max(0, -((base) // sps)) if base < 0 else 0     # primer j con índice ≥ 0
-        j_hi = min(count - 1, (len(x) - 1 - base) // sps)      # último j con índice < len(x)
+        base = start + delay - k
+        j_lo = max(0, -((base) // sps)) if base < 0 else 0
+        j_hi = min(count - 1, (len(x) - 1 - base) // sps)
         if j_hi < j_lo:
             continue
         first = base + sps * j_lo

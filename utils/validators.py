@@ -1,17 +1,4 @@
-"""
-validators.py
-=============
-Validaciones de entrada del usuario (RNF1).
-
-Todas las funciones retornan (ok, valor, mensaje):
-    ok      : True si el dato es válido.
-    valor   : dato convertido (None si no es válido).
-    mensaje : texto para el usuario (None si es válido).
-
-Así la GUI puede mostrar el mensaje sin lanzar excepciones.  El núcleo
-también las reutiliza (validate_simulation_params) para no depender de que
-la entrada provenga de la interfaz.
-"""
+"""Validaciones de entrada del usuario (RNF1)."""
 
 from __future__ import annotations
 
@@ -21,13 +8,12 @@ from utils.constants import (
     VALID_ORDERS, MODULATION_SCHEMES,
     ROLL_OFF_MIN, ROLL_OFF_MAX, ROLL_OFF_ADVISORY, SPS_MIN, SPS_MAX,
     NUM_SYMBOLS_MIN, NUM_SYMBOLS_MAX,
+    ROLL_OFF_ISI_LIMIT, ROLL_OFF_SOFT_LIMIT, ISI_SENSITIVE_ORDER,
     EB_N0_LIMIT_MIN, EB_N0_LIMIT_MAX, EB_N0_STEPS_MIN, EB_N0_STEPS_MAX,
     SYMBOL_RATE_MIN, SYMBOL_RATE_MAX,
     MIN_ERRORS_MIN, MIN_ERRORS_MAX, MAX_SYMBOLS_MIN, MAX_SYMBOLS_MAX,
 )
 
-
-# ── Conversión de texto ──────────────────────────────────────────────────────
 
 def parse_float(text, name: str = "El valor"):
     """Convierte texto a float aceptando coma decimal; rechaza NaN/inf."""
@@ -62,8 +48,6 @@ def _check_range(value, low, high, name, unit=""):
     return True, value, None
 
 
-# ── Validadores de parámetros ────────────────────────────────────────────────
-
 def validate_scheme(scheme):
     if scheme not in MODULATION_SCHEMES:
         return False, None, f"Esquema '{scheme}' no reconocido. Use: {MODULATION_SCHEMES}"
@@ -71,7 +55,7 @@ def validate_scheme(scheme):
 
 
 def validate_modulation_order(scheme: str, m):
-    """Verifica que el orden M sea válido para el esquema (p. ej. M-QAM: 4, 16, 64, 256)."""
+    """Verifica que el orden M sea válido para el esquema."""
     ok, _, msg = validate_scheme(scheme)
     if not ok:
         return False, None, msg
@@ -100,16 +84,25 @@ def validate_roll_off(alpha):
     return True, value, None
 
 
-def roll_off_advisory(alpha):
-    """
-    Aviso NO bloqueante para α válido pero muy pequeño.  Un filtro finito no puede
-    ser Nyquist exacto con α→0 (la sinc decae como 1/t): queda algo de ISI y la BER
-    simulada queda ligeramente sobre la teórica.  Retorna texto o None.
-    """
+def roll_off_advisory(alpha, scheme=None, m=None):
+    """Aviso no bloqueante cuando α es válido pero muy pequeño (ISI residual del filtro finito)."""
     ok, value, _ = validate_roll_off(alpha)
-    if ok and value < ROLL_OFF_ADVISORY:
-        return (f"Aviso: con α < {ROLL_OFF_ADVISORY:g} el filtro finito deja ISI residual; "
-                "la BER simulada puede quedar algo por encima de la teórica.")
+    if not ok:
+        return None
+    if scheme is None or m is None:
+        if value < ROLL_OFF_ADVISORY:
+            return (f"Aviso: con α < {ROLL_OFF_ADVISORY:g} el filtro finito deja ISI residual; "
+                    "la BER simulada puede quedar algo por encima de la teórica.")
+        return None
+    ok_m, m_int, _ = parse_int(m, "M")
+    sensitive = scheme == "M-PAM" or (ok_m and m_int >= ISI_SENSITIVE_ORDER)
+    if sensitive and value < ROLL_OFF_ISI_LIMIT:
+        return (f"Aviso: con α < {ROLL_OFF_ISI_LIMIT:g} el filtro finito deja ISI residual y, "
+                "en M-PAM y órdenes altos, la BER simulada quedará por encima de la teórica "
+                "(el filtro no puede ser Nyquist exacto con α → 0).")
+    if not sensitive and value < ROLL_OFF_SOFT_LIMIT:
+        return (f"Aviso: con α < {ROLL_OFF_SOFT_LIMIT:g} queda algo de ISI residual; "
+                "el efecto en la BER es pequeño para este esquema y orden.")
     return None
 
 
@@ -178,13 +171,7 @@ def validate_max_symbols(n):
 def validate_simulation_params(scheme, m, alpha, n_symbols, eb_n0_db, eb_n0_min,
                                eb_n0_max, eb_n0_steps, symbol_rate_baud,
                                min_errors, max_symbols, sps):
-    """
-    Valida todos los parámetros de una simulación.
-
-    Retorna (valores, errores):
-        valores : dict con los datos convertidos (o None si hay errores)
-        errores : dict {campo: mensaje}; vacío si todo es válido
-    """
+    """Valida todos los parámetros de una simulación."""
     errors: dict[str, str] = {}
     values: dict = {}
 

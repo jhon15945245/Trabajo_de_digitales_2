@@ -67,4 +67,9 @@ Todo el azar sale de `numpy.random.default_rng` con semillas fijas derivadas de 
 ## Control de versiones
 
 El repositorio git contiene el estado original entregado a auditoría y las correcciones posteriores
-(`git log`).  Continúe con commits propios al hacer cambios (configure `git config user.name/email`).
+(`git log`).  Configure su identidad real antes de hacer commits:
+
+```bash
+git config user.name "Su nombre"
+git config user.email "su.correo@unicauca.edu.co"
+```

@@ -1,9 +1,4 @@
-"""
-export.py
-=========
-Exporta los resultados de la tabla de entrega: CSV, Markdown, análisis de
-texto y las tres gráficas PNG.  No depende de Qt (usa el backend Agg).
-"""
+"""Exporta la tabla de entrega: CSV, Markdown, análisis de texto y gráficas PNG."""
 
 from __future__ import annotations
 

@@ -1,30 +1,4 @@
-"""
-pulse_shaper.py
-===============
-Transmisor — Etapa 2: Conformación de pulso (pulse shaping) y filtro casado.
-
-Se usa el filtro de raíz de coseno alzado (SRRC).  TX y RX usan el mismo
-SRRC, de modo que la cascada TX⊛RX es un coseno alzado (RC) que cumple el
-criterio de Nyquist (ISI nula en los instantes de muestreo) y el filtro del
-receptor es el filtro casado (máxima SNR en el instante de decisión).
-
-Parámetros
-  alpha : factor de roll-off, 0 ≤ α ≤ 1  (ancho de banda = (1+α)·Rs)
-  span  : duración del filtro en símbolos
-  sps   : muestras por símbolo
-
-SRRC en tiempo discreto (t en unidades de T, t = n/sps):
-
-    h(t) = [ sin(π t (1-α)) + 4α t cos(π t (1+α)) ] / [ π t (1 - (4α t)²) ]
-
-  t = 0        →  h(0) = 1 - α + 4α/π
-  t = ±1/(4α)  →  h = (α/√2)·[ (1+2/π) sin(π/(4α)) + (1-2/π) cos(π/(4α)) ]
-
-Los coeficientes se normalizan a energía unitaria (Σh² = 1), de modo que el
-filtro no altera la energía de símbolo: Es = (potencia por muestra)·sps.
-
-Referencia: Proakis & Salehi, Cap. 9 (Raised cosine / square-root RC).
-"""
+"""Transmisor — Etapa 2: Conformación de pulso (pulse shaping) y filtro casado."""
 
 from __future__ import annotations
 
@@ -51,15 +25,7 @@ class PulseShaper:
         self._coeffs = self._design_srrc()
 
     def shape(self, symbols: np.ndarray) -> np.ndarray:
-        """
-        1. Sobremuestreo: inserta (sps-1) ceros entre símbolos.
-        2. Convolución con el SRRC y compensación del retardo de grupo.
-
-        La salida tiene len(symbols)·sps muestras y el símbolo j queda
-        centrado en la muestra j·sps.  Para no truncar las colas de los
-        primeros/últimos símbolos, el llamador debe rellenar con símbolos
-        nulos (ver core/link.py).
-        """
+        """Sobremuestrea por sps y filtra con el SRRC; retorna la señal en banda base conformada."""
         return upsample_filter_centered(np.asarray(symbols, dtype=complex),
                                         self._coeffs, self.sps)
 
@@ -69,7 +35,7 @@ class PulseShaper:
     def _design_srrc(self) -> np.ndarray:
         alpha, sps, span = self.alpha, self.sps, self.span
         half = (span * sps) // 2
-        t = np.arange(-half, half + 1) / sps               # unidades de T
+        t = np.arange(-half, half + 1) / sps
         coeffs = np.zeros(len(t))
 
         for idx, ti in enumerate(t):
@@ -86,19 +52,12 @@ class PulseShaper:
                 den = np.pi * ti * (1.0 - (4.0 * alpha * ti) ** 2)
                 coeffs[idx] = num / den
 
-        coeffs /= np.sqrt(np.sum(coeffs ** 2))             # energía unitaria
+        coeffs /= np.sqrt(np.sum(coeffs ** 2))
         return coeffs
 
 
 class MatchedFilter:
-    """
-    Receptor — filtro casado SRRC.
-
-    filter(x)       : filtra a la tasa de muestreo completa (útil para el
-                      diagrama del ojo).
-    downsample(y)   : toma una muestra cada sps (instante óptimo, offset 0).
-    filter_and_downsample(x) : ambas operaciones.
-    """
+    """Receptor — filtro casado SRRC."""
 
     def __init__(self, alpha: float, span: int = 20, sps: int = 8):
         self._shaper = PulseShaper(alpha, span, sps)
@@ -111,11 +70,7 @@ class MatchedFilter:
         return filtered[offset:: self.sps]
 
     def sample_symbols(self, received: np.ndarray, start: int, count: int) -> np.ndarray:
-        """
-        Filtro casado evaluado SOLO en los instantes de símbolo start, start+sps, …
-        (count muestras).  Igual a filter(received)[start::sps][:count] pero sin
-        calcular las muestras intermedias (más rápido; no sirve para el ojo).
-        """
+        """Filtro casado evaluado solo en los instantes de símbolo."""
         return filter_decimate_centered(received, self._shaper.get_coefficients(),
                                         self.sps, start, count)
 

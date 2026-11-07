@@ -1,17 +1,4 @@
-"""
-controls_panel.py
-=================
-Panel de controles (lado izquierdo).
-
-Todos los parámetros numéricos se ingresan en cajas de texto y se validan con
-utils/validators.py ANTES de simular.  Si hay un valor no permitido (por
-ejemplo roll-off 1.7, M=8 en M-QAM, texto no numérico) se muestra un mensaje
-bajo el campo y, al pulsar "Simular", un cuadro de diálogo; la aplicación
-nunca se detiene ni se cae (RNF1).
-
-Actualización inmediata (RF1): con la casilla "Actualizar automáticamente"
-la simulación se relanza ~0.6 s después del último cambio válido.
-"""
+"""Panel de controles (lado izquierdo)."""
 
 from __future__ import annotations
 
@@ -37,18 +24,24 @@ AUTO_UPDATE_DELAY_MS = 600
 ERROR_STYLE = "color: #C62828; font-size: 10px;"
 HINT_STYLE = "color: gray; font-size: 10px;"
 
-# clave de error del validador → campo donde se muestra
+METRIC_TOOLTIPS = {
+    "eta": "η = log2(M)/(1+α) bit/s/Hz. Ancho de banda pasabanda (doble banda lateral), "
+           "B = Rs·(1+α); en banda base de PAM sin portadora η valdría el doble.",
+    "es": "Es = energía de símbolo de la envolvente compleja (normalizada a 1 u.e.). "
+          "La energía de la señal pasabanda real es la mitad (Es/2): la portadora real "
+          "reparte su potencia en dos bandas.",
+    "eb": "Eb = Es/log2(M).",
+    "bw": "B = Rs·(1+α), señal pasabanda nulo a nulo; en banda base ocupa ±B/2.",
+    "power": "Potencia pasabanda en Es/Ts: P_pb = P_bb/2 = Es/2 (portadora real).",
+    "evm": "Magnitud del error rms de los símbolos recibidos respecto a los ideales (Es = 1).",
+    "ber": "Con 0 errores solo se sabe BER < 1/bits simulados.",
+}
+
 _ERROR_FIELD = {"eb_n0_range": "eb_n0_min"}
 
 
 class ControlsPanel(QWidget):
-    """
-    Señales
-    -------
-    simulate_requested(params, automatic) : parámetros válidos; `automatic`
-        indica que vino de la actualización automática.
-    compare_requested() : abrir la comparación 4PAM/4QAM/4PSK (tabla de entrega).
-    """
+    """Panel de controles: parámetros de modulación, canal y curva BER, y métricas del sistema."""
 
     simulate_requested = pyqtSignal(object, bool)
     compare_requested = pyqtSignal()
@@ -63,7 +56,6 @@ class ControlsPanel(QWidget):
         self._auto_timer.timeout.connect(self._on_auto_timeout)
         self._build_ui()
 
-    # ── Construcción ─────────────────────────────────────────────────────────
 
     def _build_ui(self):
         outer = QVBoxLayout(self)
@@ -88,7 +80,6 @@ class ControlsPanel(QWidget):
         layout.addWidget(title)
         layout.addWidget(self._separator())
 
-        # Modulación
         mod_group = QGroupBox("Modulación")
         mod_form = QFormLayout(mod_group)
         self._scheme_combo = QComboBox()
@@ -108,9 +99,9 @@ class ControlsPanel(QWidget):
         self._alpha_hint.setWordWrap(True)
         mod_form.addRow("", self._alpha_hint)
         self._edits["alpha"].textChanged.connect(self._update_alpha_hint)
+        self._edits["m"].textChanged.connect(self._update_alpha_hint)
         layout.addWidget(mod_group)
 
-        # Canal / punto de operación
         ch_group = QGroupBox("Canal y punto de operación")
         ch_form = QFormLayout(ch_group)
         self._add_field(ch_form, "eb_n0_db", "Eb/N0 [dB]:", f"{DEFAULT_EB_N0_DB:g}",
@@ -122,7 +113,6 @@ class ControlsPanel(QWidget):
                         "Tasa de símbolo (para ancho de banda en Hz y tasa de bit)")
         layout.addWidget(ch_group)
 
-        # Curva BER
         curve_group = QGroupBox("Curva BER (Monte Carlo)")
         curve_form = QFormLayout(curve_group)
         self._add_field(curve_form, "eb_n0_min", "Eb/N0 mín [dB]:", f"{DEFAULT_EB_N0_MIN:g}", "")
@@ -134,7 +124,6 @@ class ControlsPanel(QWidget):
                         "Tope de símbolos por punto (BER mínima medible ≈ 1/(bits))")
         layout.addWidget(curve_group)
 
-        # Botones
         self._auto_chk = QCheckBox("Actualizar automáticamente")
         self._auto_chk.setChecked(True)
         self._auto_chk.setToolTip("Relanza la simulación al cambiar un parámetro válido")
@@ -155,7 +144,6 @@ class ControlsPanel(QWidget):
         layout.addWidget(self._compare_btn)
         layout.addWidget(self._separator())
 
-        # Métricas
         metrics = QGroupBox("Métricas del Sistema")
         mform = QFormLayout(metrics)
         self._metric_labels: dict[str, QLabel] = {}
@@ -167,6 +155,7 @@ class ControlsPanel(QWidget):
         ):
             lbl = QLabel("—")
             lbl.setWordWrap(True)
+            lbl.setToolTip(METRIC_TOOLTIPS.get(key, ""))
             lbl.setStyleSheet("font-weight: bold; color: #1565C0;")
             self._metric_labels[key] = lbl
             mform.addRow(text, lbl)
@@ -201,7 +190,6 @@ class ControlsPanel(QWidget):
         sep.setFrameShadow(QFrame.Sunken)
         return sep
 
-    # ── Lectura y validación de parámetros ───────────────────────────────────
 
     def set_field_text(self, key: str, text: str) -> None:
         self._edits[key].setText(text)
@@ -210,11 +198,7 @@ class ControlsPanel(QWidget):
         self._scheme_combo.setCurrentText(scheme)
 
     def collect(self, show_dialog: bool = False):
-        """
-        Valida todos los campos.  Retorna SimulationParams o None.
-        Los mensajes se muestran bajo cada campo; con show_dialog=True además
-        se abre un QMessageBox con la lista de problemas.
-        """
+        """Valida todos los campos."""
         t = {k: e.text() for k, e in self._edits.items()}
         values, errors = validate_simulation_params(
             self._scheme_combo.currentText(), t["m"], t["alpha"], t["n_symbols"],
@@ -240,7 +224,6 @@ class ControlsPanel(QWidget):
                 self._errors[target].setText(msg)
                 self._errors[target].show()
 
-    # ── Slots ────────────────────────────────────────────────────────────────
 
     def _on_scheme_changed(self, scheme: str):
         valid = VALID_ORDERS.get(scheme, [])
@@ -248,10 +231,14 @@ class ControlsPanel(QWidget):
         ok, _, _ = validate_modulation_order(scheme, self._edits["m"].text())
         if not ok and valid:
             self._edits["m"].setText(str(DEFAULT_M if DEFAULT_M in valid else valid[0]))
+        self._update_alpha_hint()
         self._schedule_auto()
 
-    def _update_alpha_hint(self, text: str):
-        self._alpha_hint.setText(roll_off_advisory(text) or "")
+    def _update_alpha_hint(self, *_):
+        """Aviso de ISI residual según α, esquema y orden (se refresca al cambiar cualquiera)."""
+        self._alpha_hint.setText(roll_off_advisory(
+            self._edits["alpha"].text(), self._scheme_combo.currentText(),
+            self._edits["m"].text()) or "")
 
     def _validate_inline(self):
         self.collect(show_dialog=False)
@@ -270,7 +257,6 @@ class ControlsPanel(QWidget):
         if params is not None:
             self.simulate_requested.emit(params, False)
 
-    # ── API pública ──────────────────────────────────────────────────────────
 
     def set_busy(self, busy: bool) -> None:
         self._simulate_btn.setEnabled(not busy)

@@ -1,13 +1,4 @@
-"""
-comparison_dialog.py
-====================
-Ventana de la tabla de entrega: diferencias de Eb/N0 entre 4PAM, 4QAM y 4PSK
-para BER = 1e-2 … 1e-7, análisis de resultados y gráficas.
-
-La tabla teórica aparece al abrir (instantánea).  El botón "Verificar por
-simulación" lanza el Monte Carlo en un hilo y agrega las columnas simuladas y
-los puntos en las gráficas.  "Exportar" guarda CSV, Markdown, análisis y PNG.
-"""
+"""Ventana de la tabla de entrega de diferencias de Eb/N0."""
 
 from __future__ import annotations
 
@@ -29,8 +20,9 @@ from utils.validators import validate_max_symbols
 
 
 class _SimWorker(QObject):
+    """Ejecuta en un hilo las simulaciones Monte Carlo de la tabla de entrega."""
     progress = pyqtSignal(int, int)
-    finished = pyqtSignal(object)        # dict o None si se canceló
+    finished = pyqtSignal(object)
     error = pyqtSignal(str)
 
     def __init__(self, alpha: float, max_symbols: int):
@@ -47,11 +39,12 @@ class _SimWorker(QObject):
                                       progress=self.progress.emit,
                                       cancelled=lambda: self._cancel)
             self.finished.emit(sim)
-        except Exception as exc:         # noqa: BLE001
+        except Exception as exc:
             self.error.emit(f"{type(exc).__name__}: {exc}")
 
 
 class ComparisonDialog(QDialog):
+    """Ventana de la tabla de entrega: ΔEb/N0 entre 4PAM, 4QAM y 4PSK, gráficas y análisis."""
     def __init__(self, parent=None, alpha: float = 0.35):
         super().__init__(parent)
         self.setWindowTitle("Comparación 4PAM / 4QAM / 4PSK — tabla de entrega")
@@ -63,6 +56,26 @@ class ComparisonDialog(QDialog):
         self._worker: _SimWorker | None = None
         self._build_ui()
         self._refresh()
+
+    @property
+    def alpha(self) -> float:
+        return self._alpha
+
+    def done(self, result: int) -> None:
+        """Se ejecuta al cerrar con Esc, Aceptar/Cancelar o close()."""
+        self._stop_thread()
+        super().done(result)
+
+    def _stop_thread(self) -> None:
+        if self._worker is not None:
+            self._worker.cancel()
+        if self._thread is not None:
+            self._thread.quit()
+            if self._thread.wait(15000):
+                if self._worker is not None:
+                    self._worker.deleteLater()
+                self._thread.deleteLater()
+        self._worker = self._thread = None
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -109,7 +122,6 @@ class ComparisonDialog(QDialog):
         pl.addWidget(self._canvas)
         tabs.addTab(plots_tab, "Gráficas")
 
-    # ── Contenido ────────────────────────────────────────────────────────────
 
     def _refresh(self):
         rows = table_rows(self._theory, self._sim)
@@ -128,7 +140,6 @@ class ComparisonDialog(QDialog):
         self._fig.tight_layout()
         self._canvas.draw_idle()
 
-    # ── Simulación en hilo ───────────────────────────────────────────────────
 
     def _start_simulation(self):
         if self._thread is not None:
@@ -159,7 +170,7 @@ class ComparisonDialog(QDialog):
         self._progress.setValue(done)
 
     def _on_sim_finished(self, sim):
-        if sim is not None:
+        if sim is not None and self.isVisible():
             self._sim = sim
             self._refresh()
 
@@ -187,10 +198,6 @@ class ComparisonDialog(QDialog):
         QMessageBox.information(self, "Exportación completa",
                                 "Archivos creados:\n" + "\n".join(paths))
 
-    def closeEvent(self, event):         # noqa: N802
-        if self._worker is not None:
-            self._worker.cancel()
-        if self._thread is not None:
-            self._thread.quit()
-            self._thread.wait(5000)
+    def closeEvent(self, event):
+        self._stop_thread()
         super().closeEvent(event)

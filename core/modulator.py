@@ -1,28 +1,4 @@
-"""
-modulator.py
-============
-Modulación y demodulación en pasabanda (modulación analógica IQ).
-
-Transmisor:   x(t) = I(t)·cos(2π fc t) − Q(t)·sin(2π fc t)  = Re{ s(t)·e^{j2π fc t} }
-Receptor coherente (fase y frecuencia perfectamente sincronizadas):
-
-    r(t)·cos(2π fc t)    = I/2 + (I·cos(4π fc t) − Q·sin(4π fc t))/2
-    r(t)·(−sin(2π fc t)) = Q/2 + (términos en 2fc)
-
-Un filtro pasa-bajas elimina los términos en 2·fc y la ganancia 2 final
-compensa el factor 1/2.
-
-Diseño del LPF (corrección respecto a la versión anterior)
-----------------------------------------------------------
-El LPF debe dejar pasar TODO el espectro de la señal en banda base, que
-ocupa |f| ≤ (1+α)/2·Rs, y rechazar el término en 2·fc.  La versión anterior
-cortaba en 0.5·Rs, atenuando los bordes del espectro y generando ISI
-(EVM ≈ 0.24 incluso sin ruido).  Ahora la frecuencia de corte es
-
-        f_c,LPF = [ (1+α)/2 + LPF_MARGIN_RS ] · Rs
-
-Referencia: Proakis & Salehi, Cap. 3 (Bandpass signals) y Cap. 5.
-"""
+"""Modulación y demodulación en pasabanda (modulación analógica IQ)."""
 
 from __future__ import annotations
 
@@ -35,7 +11,7 @@ from utils.dsp import fir_filter_centered
 
 
 class Modulator:
-    """Modulador IQ a pasabanda real.  fc_normalized = fc/fs (típico 0.25)."""
+    """Modulador IQ a pasabanda real."""
 
     def __init__(self, fc_normalized: float = CARRIER_FREQ_NORMALIZED):
         if not (0.0 < fc_normalized < 0.5):
@@ -50,14 +26,7 @@ class Modulator:
 
 
 class Demodulator:
-    """
-    Demodulador coherente IQ.
-
-    Parámetros
-    ----------
-    fc_normalized : fc/fs.
-    alpha         : roll-off de la señal (define el corte del LPF).
-    """
+    """Demodulador coherente IQ."""
 
     def __init__(self, fc_normalized: float = CARRIER_FREQ_NORMALIZED,
                  alpha: float = 0.35):
@@ -79,11 +48,8 @@ class Demodulator:
         return 2.0 * (i_filtered + 1j * q_filtered)
 
     def _lowpass_coefficients(self, sps: int) -> np.ndarray:
-        """
-        FIR pasa-bajas: sinc enventanada con Hann, longitud 8·sps+1,
-        ganancia DC = 1.   h[n] = 2·fc·sinc(2·fc·n) · w[n],  fc = corte/fs.
-        """
-        cutoff = self.lowpass_cutoff_rs() / sps          # normalizado a fs
+        """Diseña el FIR pasa-bajas: sinc enventanada con Hann y ganancia DC = 1."""
+        cutoff = self.lowpass_cutoff_rs() / sps
         if cutoff >= 0.5:
             raise ValueError("El corte del LPF supera Nyquist: aumente sps.")
         n_taps = LPF_TAPS_PER_SYMBOL * sps + 1

@@ -1,15 +1,4 @@
-"""
-test_system.py
-==============
-Pruebas automáticas del simulador (solo biblioteca estándar: unittest).
-
-Ejecutar desde la raíz del proyecto:
-    python -m unittest discover -s tests -v
-
-Cada prueba verifica una propiedad teórica del sistema de comunicaciones:
-mapeo Gray, energía unitaria del SRRC, ausencia de ISI, calibración del
-ruido (Eb/N0), concordancia BER simulada vs teórica, métricas y validaciones.
-"""
+"""Pruebas automáticas del simulador (solo biblioteca estándar: unittest)."""
 
 import os
 import sys
@@ -19,19 +8,19 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from analysis.comparison import (                      # noqa: E402
+from analysis.comparison import (
     ebn0_for_ber, interpolate_ebn0, theoretical_table,
 )
-from core.ber_calculator import BERCalculator, q_function   # noqa: E402
-from core.link import CommLink                         # noqa: E402
-from core.mapper import Mapper, generate_random_bits, gray_code   # noqa: E402
-from core.pulse_shaper import PulseShaper              # noqa: E402
-from core.simulation_runner import SimulationParams, SimulationRunner   # noqa: E402
-from metrics.signal_power import compute_signal_power  # noqa: E402
-from metrics.spectral_efficiency import compute_spectral_efficiency   # noqa: E402
-from plots.eye_diagram import eye_segments, eye_time_axis   # noqa: E402
-from utils.constants import VALID_ORDERS               # noqa: E402
-from utils.validators import (                         # noqa: E402
+from core.ber_calculator import BERCalculator, q_function
+from core.link import CommLink
+from core.mapper import Mapper, generate_random_bits, gray_code
+from core.pulse_shaper import PulseShaper
+from core.simulation_runner import SimulationParams, SimulationRunner
+from metrics.signal_power import compute_signal_power
+from metrics.spectral_efficiency import compute_spectral_efficiency
+from plots.eye_diagram import eye_segments, eye_time_axis
+from utils.constants import VALID_ORDERS
+from utils.validators import (
     validate_modulation_order, validate_roll_off, validate_simulation_params,
 )
 
@@ -39,6 +28,7 @@ ALL_SCHEMES = [(s, m) for s, orders in VALID_ORDERS.items() for m in orders]
 
 
 class TestMapper(unittest.TestCase):
+    """Mapeo: código Gray, energía unitaria y órdenes válidos."""
     def test_gray_adjacency_all_orders(self):
         """Puntos vecinos a distancia mínima difieren en exactamente 1 bit."""
         for scheme, m in ALL_SCHEMES:
@@ -71,6 +61,7 @@ class TestMapper(unittest.TestCase):
 
 
 class TestPulseShaping(unittest.TestCase):
+    """Filtro SRRC: energía unitaria y cascada de Nyquist."""
     def test_srrc_unit_energy(self):
         for a in (0.0, 0.2, 0.35, 0.5, 1.0):
             h = PulseShaper(a, 20, 8).get_coefficients()
@@ -92,6 +83,7 @@ class TestPulseShaping(unittest.TestCase):
 
 
 class TestEndToEnd(unittest.TestCase):
+    """Enlace completo: cadena sin ruido, calibración del ruido y BER frente a teoría."""
     def test_noiseless_chain_has_no_errors(self):
         """Sin ruido (Eb/N0 muy alto) la BER es 0 para todo esquema, orden y roll-off."""
         for scheme, m in ALL_SCHEMES:
@@ -140,7 +132,6 @@ class TestEndToEnd(unittest.TestCase):
         b, _, _ = SimulationRunner.simulate_ber_curve("M-QAM", 16, 1.0, pts, min_errors=500, max_symbols=60000)
         self.assertEqual(len(a), 1)
         self.assertEqual(len(b), 1)
-        # α=0 (SRRC truncado) y α=1 dan ISI distinto → no pueden ser idénticos
         self.assertNotEqual(float(a[0]), float(b[0]))
 
     def test_reproducibility(self):
@@ -153,6 +144,7 @@ class TestEndToEnd(unittest.TestCase):
 
 
 class TestTheoryAndTable(unittest.TestCase):
+    """BER teórica, inversión de Eb/N0 y tabla de entrega."""
     def test_q_function(self):
         self.assertAlmostEqual(q_function(0.0), 0.5, places=12)
         self.assertAlmostEqual(q_function(1.0), 0.15865525393145707, places=12)
@@ -184,7 +176,7 @@ class TestTheoryAndTable(unittest.TestCase):
         prev = 0
         for v, w in zip(d["4PAM-4QAM"], d["4QAM-4PAM"]):
             self.assertAlmostEqual(v, -w, places=9)
-            self.assertTrue(prev < v < limit)      # crece y tiende a 3.98 dB
+            self.assertTrue(prev < v < limit)
             prev = v
         self.assertAlmostEqual(d["4PAM-4QAM"][0], 3.559, delta=0.005)
 
@@ -198,6 +190,7 @@ class TestTheoryAndTable(unittest.TestCase):
 
 
 class TestMetrics(unittest.TestCase):
+    """Métricas RF4: eficiencia espectral, energías, potencia y ancho de banda."""
     def test_spectral_efficiency(self):
         self.assertAlmostEqual(compute_spectral_efficiency(4, 0.35), 2 / 1.35, places=12)
         self.assertAlmostEqual(compute_spectral_efficiency(16, 0.0), 4.0, places=12)
@@ -206,12 +199,9 @@ class TestMetrics(unittest.TestCase):
         for scheme, m in (("M-QAM", 4), ("M-PAM", 8), ("M-PSK", 16)):
             res = SimulationRunner().run_point(SimulationParams(scheme=scheme, m=m, n_symbols=4000))
             self.assertAlmostEqual(res.symbol_energy, 1.0, places=9)
-            # Es medida en la señal = energía media de los símbolos realmente transmitidos
-            # (la muestra aleatoria de símbolos puede desviarse unos % de Es = 1)
             es_sent = float(np.mean(np.abs(res.symbols_tx) ** 2))
             self.assertAlmostEqual(res.symbol_energy_measured / es_sent, 1.0, delta=0.005)
             self.assertAlmostEqual(res.bit_energy, 1.0 / np.log2(m), places=9)
-            # P_pb = Es/2 (sin dividir dos veces por 2)
             self.assertAlmostEqual(res.signal_power / (0.5 * es_sent), 1.0, delta=0.01)
             self.assertAlmostEqual(res.signal_power_theory, 0.5, places=9)
 
@@ -226,30 +216,32 @@ class TestMetrics(unittest.TestCase):
 
 
 class TestEye(unittest.TestCase):
+    """Diagrama del ojo: eje de tiempo y apertura."""
     def test_time_axis_step_is_one_over_sps(self):
         t = eye_time_axis(8)
         self.assertEqual(len(t), 17)
         np.testing.assert_allclose(np.diff(t), 1 / 8)
-        self.assertEqual(t[8], 0.0)          # instante de muestreo en el centro
+        self.assertEqual(t[8], 0.0)
 
     def test_eye_open_after_matched_filter(self):
         """Sin ruido, en t = 0 las trazas de 4-PAM se agrupan en 4 niveles."""
         res = SimulationRunner().run_point(SimulationParams(scheme="M-PAM", m=4, eb_n0_db=40.0, n_symbols=1500))
         segs = eye_segments(np.real(res.mf_output), 8, 300)
-        centre = segs[:, 8]                         # t = 0 (instante de muestreo)
+        centre = segs[:, 8]
         nominal = np.array([-3, -1, 1, 3]) / np.sqrt(5)
         dist = np.min(np.abs(centre[:, None] - nominal[None, :]), axis=1)
-        self.assertLess(dist.max(), 0.05)           # ojo abierto: 4 niveles nítidos
+        self.assertLess(dist.max(), 0.05)
 
 
 class TestValidation(unittest.TestCase):
+    """Validación de entradas del usuario (RNF1)."""
     def test_roll_off(self):
         self.assertFalse(validate_roll_off(1.7)[0])
         self.assertFalse(validate_roll_off(-0.1)[0])
         self.assertFalse(validate_roll_off("abc")[0])
         self.assertFalse(validate_roll_off("")[0])
         self.assertFalse(validate_roll_off(float("nan"))[0])
-        self.assertTrue(validate_roll_off("0,35")[0])        # coma decimal
+        self.assertTrue(validate_roll_off("0,35")[0])
         self.assertTrue(validate_roll_off(0)[0])
         self.assertTrue(validate_roll_off(1)[0])
 
@@ -288,7 +280,7 @@ def _ber_ratio(scheme, m, alpha, eb_n0, min_errors=1500, block=20000, max_blocks
 
 
 class TestSmallRollOff(unittest.TestCase):
-    """Auditoría ronda 2 (H1): roll-off pequeño con SRRC truncado."""
+    """Roll-off pequeño con SRRC truncado."""
 
     def test_span_grows_when_alpha_shrinks(self):
         from utils.constants import filter_span_for_alpha
@@ -311,7 +303,7 @@ class TestSmallRollOff(unittest.TestCase):
             self.assertTrue(0.88 < ratio < 1.15, f"α={a}: razón {ratio:.2f} ({n} errores)")
 
     def test_alpha_zero_has_bounded_residual_isi(self):
-        """α = 0: un filtro finito deja ISI; se exige que sea acotada (documentado)."""
+        """α = 0: la ISI residual del filtro finito debe estar acotada."""
         link = CommLink("M-QAM", 16, 0.0)
         out = link.run(generate_random_bits(2000, 4, 5), 80.0, 1)
         evm = np.sqrt(np.mean(np.abs(out.symbols_rx - out.symbols_tx) ** 2))
@@ -324,11 +316,11 @@ class TestSmallRollOff(unittest.TestCase):
         self.assertIsNotNone(roll_off_advisory("0"))
         self.assertIsNotNone(roll_off_advisory(0.02))
         self.assertIsNone(roll_off_advisory(0.35))
-        self.assertIsNone(roll_off_advisory("abc"))     # el error lo informa el validador
+        self.assertIsNone(roll_off_advisory("abc"))
 
 
 class TestNoiseCalibrationTheoreticalEs(unittest.TestCase):
-    """Auditoría ronda 2 (H2): Eb/N0 definido con Es teórica, no con la muestra."""
+    """Eb/N0 definido con la Es teórica."""
 
     def test_variance_with_pam_and_few_symbols(self):
         link = CommLink("M-PAM", 4, 0.35)
@@ -336,12 +328,12 @@ class TestNoiseCalibrationTheoreticalEs(unittest.TestCase):
         ref = link.receive(tx, 80.0, 3).symbols_rx
         for eb_n0_db in (3.0, 6.0):
             r = link.receive(tx, eb_n0_db, 3).symbols_rx - ref
-            n0 = (1.0 / 2) / 10 ** (eb_n0_db / 10)          # Es teórica = 1 → Eb = 1/2
+            n0 = (1.0 / 2) / 10 ** (eb_n0_db / 10)
             self.assertAlmostEqual(r.real.var() / (n0 / 2), 1.0, delta=0.05)
 
 
 class TestOwnDSP(unittest.TestCase):
-    """Auditoría ronda 2 (H4): FFT/convolución propias (numpy solo como referencia)."""
+    """FFT y convolución propias frente a numpy como referencia."""
 
     def test_fft_matches_reference(self):
         from utils.dsp import fft, ifft
@@ -370,7 +362,7 @@ class TestOwnDSP(unittest.TestCase):
 
 
 class TestEyeQBranch(unittest.TestCase):
-    """Auditoría ronda 2 (H5): el ojo de una constelación real no dibuja la rama Q."""
+    """El ojo de una constelación real no dibuja la rama Q."""
 
     def test_show_q_flag(self):
         from matplotlib.figure import Figure
@@ -383,6 +375,117 @@ class TestEyeQBranch(unittest.TestCase):
             plot_eye_diagram(ax, sig, 8, n_traces=20, show_q=flag)
             lines[flag] = len(ax.lines)
         self.assertGreater(lines[True], lines[False])
+
+
+class TestRollOffAdvisory(unittest.TestCase):
+    """Aviso de roll-off por esquema y orden, y punto de operación sin errores."""
+
+    def test_advisory_depends_on_scheme_and_order(self):
+        from utils.validators import roll_off_advisory
+        self.assertIsNotNone(roll_off_advisory(0.0, "M-PAM", 4))
+        self.assertIsNotNone(roll_off_advisory(0.015, "M-QAM", 64))
+        self.assertIsNotNone(roll_off_advisory(0.0, "M-PSK", 8))
+        self.assertIsNone(roll_off_advisory(0.02, "M-PAM", 4))
+        self.assertIsNone(roll_off_advisory(0.35, "M-QAM", 256))
+        self.assertIsNone(roll_off_advisory(0.015, "M-QAM", 4))
+        soft = roll_off_advisory(0.0, "M-QAM", 4)
+        strong = roll_off_advisory(0.0, "M-PAM", 4)
+        self.assertIsNotNone(soft)
+        self.assertNotEqual(soft, strong)
+        self.assertIsNone(roll_off_advisory("abc", "M-PAM", 4))
+        self.assertIsNone(roll_off_advisory(1.5, "M-PAM", 4))
+
+    def test_ber_plot_zero_errors_operating_point(self):
+        """Con 0 errores se dibuja un triángulo en 1/bits (antes no se dibujaba nada)."""
+        from matplotlib.figure import Figure
+        from plots.ber_curve import plot_ber_curve
+        x = np.linspace(0, 10, 11)
+        th = BERCalculator.ber_theoretical("M-QAM", 4, x)
+        ax = Figure().add_subplot(111)
+        plot_ber_curve(ax, x, th, operating_point=(10.0, 0.0, 4000))
+        labels = [l.get_label() for l in ax.get_lines()]
+        self.assertTrue(any("0 errores" in t for t in labels), labels)
+        ys = [l.get_ydata()[0] for l in ax.get_lines() if "0 errores" in l.get_label()]
+        self.assertAlmostEqual(ys[0], 1 / 4000)
+        ax2 = Figure().add_subplot(111)
+        plot_ber_curve(ax2, x, th, operating_point=(10.0, 2e-3, 4000))
+        self.assertTrue(any(l.get_label() == "Punto de operación" for l in ax2.get_lines()))
+
+    def test_alpha_small_pam_deviates_but_002_fits(self):
+        """Documenta lo medido: 4-PAM con α=0 se separa de la teoría y con α=0.02 ajusta."""
+        r0, _ = _ber_ratio("M-PAM", 4, 0.0, 13.0, min_errors=100)
+        r2, _ = _ber_ratio("M-PAM", 4, 0.02, 13.0, min_errors=100)
+        self.assertGreater(r0, 1.5)
+        self.assertTrue(0.7 < r2 < 1.4, r2)
+
+    def test_analysis_mentions_statistical_uncertainty(self):
+        from analysis.comparison import generate_analysis
+        fake_sim = {"diff": {"4PAM-4QAM": [3.5, 3.7, 3.9, float("nan"), float("nan"), float("nan")]}}
+        text = generate_analysis(theoretical_table(), fake_sim)
+        self.assertIn("Incertidumbre estadística", text)
+
+
+try:
+    import PyQt5
+    _HAS_QT = True
+except ImportError:
+    _HAS_QT = False
+
+
+@unittest.skipUnless(_HAS_QT, "PyQt5 no instalado: se omite la prueba de humo de la GUI")
+class TestGuiSmoke(unittest.TestCase):
+    """Prueba de humo de la GUI sin pantalla (offscreen)."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        import matplotlib
+        matplotlib.use("Agg")
+        from PyQt5.QtWidgets import QApplication
+        cls.app = QApplication.instance() or QApplication([])
+
+    def test_controls_validate_and_hint(self):
+        from gui.controls_panel import ControlsPanel
+        panel = ControlsPanel()
+        panel.set_field_text("alpha", "1.7")
+        self.assertIsNone(panel.collect(show_dialog=False))
+        panel.set_field_text("alpha", "0.35")
+        panel.set_scheme("M-QAM")
+        panel.set_field_text("m", "8")
+        self.assertIsNone(panel.collect(show_dialog=False))
+        panel.set_field_text("m", "16")
+        params = panel.collect(show_dialog=False)
+        self.assertIsNotNone(params)
+        self.assertEqual((params.scheme, params.m), ("M-QAM", 16))
+        panel.set_scheme("M-PAM")
+        panel.set_field_text("m", "4")
+        panel.set_field_text("alpha", "0")
+        self.assertIn("ISI", panel._alpha_hint.text())
+
+    def test_main_window_point_plots(self):
+        from core.simulation_runner import SimulationParams, SimulationRunner
+        from gui.main_window import MainWindow, format_ber
+        win = MainWindow()
+        p = SimulationParams(scheme="M-QAM", m=4, alpha=0.35, eb_n0_steps=3,
+                             eb_n0_min=0, eb_n0_max=10, max_symbols=2000, min_errors=5)
+        res = SimulationRunner().run(p)
+        win._plots.update_point_plots(res, p)
+        win._controls.update_metrics(res, p)
+        self.assertIn("BER", format_ber(res))
+        win._pending = None
+        win.close()
+
+    def test_comparison_dialog_closes_with_running_thread(self):
+        from PyQt5.QtCore import QCoreApplication
+        from gui.comparison_dialog import ComparisonDialog
+        dlg = ComparisonDialog(None, alpha=0.35)
+        dlg._max_symbols.setText("1000")
+        dlg._start_simulation()
+        self.assertIsNotNone(dlg._thread)
+        dlg.show()
+        dlg.close()
+        QCoreApplication.processEvents()
+        self.assertIsNone(dlg._thread)
 
 
 if __name__ == "__main__":

@@ -1,21 +1,4 @@
-"""
-main_window.py
-==============
-Ventana principal (QMainWindow).
-
-    MainWindow
-      ├── ControlsPanel  (izquierda) — parámetros, validación y métricas
-      └── PlotsPanel     (derecha)   — cuatro gráficas
-
-La simulación corre en un QThread (no congela la GUI) en dos etapas:
-  1. punto de operación  → ojo, constelación, espectro, métricas (inmediato)
-  2. curva BER Monte Carlo → se dibuja al terminar, con barra de progreso.
-Si el usuario cambia un parámetro mientras corre la etapa 2, la simulación en
-curso se cancela y se relanza con los parámetros nuevos.
-
-Manejo de errores (RNF1): cualquier excepción en el hilo se muestra en un
-cuadro de diálogo y la aplicación sigue funcionando.
-"""
+"""Ventana principal (QMainWindow)."""
 
 from __future__ import annotations
 
@@ -31,12 +14,19 @@ from gui.controls_panel import ControlsPanel
 from gui.plots_panel import PlotsPanel
 
 
+def format_ber(results) -> str:
+    """BER para la barra de estado: con 0 errores solo existe la cota BER < 1/bits."""
+    if results.errors_point == 0:
+        return f"BER < {1.0 / max(results.bits_point, 1):.1e}"
+    return f"BER = {results.ber_simulated_point:.2e}"
+
+
 class SimulationWorker(QObject):
     """Ejecuta la simulación en un hilo secundario."""
 
-    point_ready = pyqtSignal(object, object)       # (results, params)
-    progress = pyqtSignal(int, int)                # (puntos hechos, total)
-    finished = pyqtSignal(object, object, bool)    # (results, params, completada)
+    point_ready = pyqtSignal(object, object)
+    progress = pyqtSignal(int, int)
+    finished = pyqtSignal(object, object, bool)
     error = pyqtSignal(str)
 
     def __init__(self, params: SimulationParams):
@@ -56,11 +46,12 @@ class SimulationWorker(QObject):
                                     progress=self.progress.emit,
                                     cancelled=lambda: self._cancel)
             self.finished.emit(results, self._params, done)
-        except Exception as exc:           # noqa: BLE001  (se informa al usuario)
+        except Exception as exc:
             self.error.emit(f"{type(exc).__name__}: {exc}")
 
 
 class MainWindow(QMainWindow):
+    """Ventana principal: une panel de controles, panel de gráficas y simulación en hilo."""
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Simulador de Sistema de Comunicación Digital")
@@ -74,7 +65,6 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._build_menu()
 
-    # ── Construcción ─────────────────────────────────────────────────────────
 
     def _build_ui(self):
         central = QWidget()
@@ -110,10 +100,9 @@ class MainWindow(QMainWindow):
         act.triggered.connect(self._open_comparison)
         tools.addAction(act)
 
-    # ── Simulación ───────────────────────────────────────────────────────────
 
     def _on_simulate_requested(self, params: SimulationParams, automatic: bool):
-        if self._thread is not None:               # hay una simulación en curso
+        if self._thread is not None:
             self._pending = params
             if self._worker is not None:
                 self._worker.cancel()
@@ -141,7 +130,7 @@ class MainWindow(QMainWindow):
         self._thread.start()
 
     def _on_point_ready(self, results, params):
-        if self._pending is not None:              # ya hay parámetros más nuevos
+        if self._pending is not None:
             return
         self._plots.update_point_plots(results, params)
         self._controls.update_metrics(results, params)
@@ -149,7 +138,7 @@ class MainWindow(QMainWindow):
         self._progress.setValue(0)
         self._progress.show()
         self._status_bar.showMessage(
-            f"Punto de operación listo — BER = {results.ber_simulated_point:.2e}  |  "
+            f"Punto de operación listo — {format_ber(results)}  |  "
             f"η = {results.spectral_efficiency:.3f} bit/s/Hz  |  calculando curva BER…")
 
     def _on_progress(self, done: int, total: int):
@@ -160,7 +149,7 @@ class MainWindow(QMainWindow):
         if completed and self._pending is None:
             self._plots.update_curve_plot(results, params)
             self._status_bar.showMessage(
-                f"✔ Simulación completada — BER = {results.ber_simulated_point:.2e}  |  "
+                f"✔ Simulación completada — {format_ber(results)}  |  "
                 f"η = {results.spectral_efficiency:.3f} bit/s/Hz  |  "
                 f"B = {results.bandwidth_norm:.3f}·Rs")
 
@@ -184,16 +173,25 @@ class MainWindow(QMainWindow):
             params, self._pending = self._pending, None
             self._start(params)
 
-    # ── Comparación (tabla de entrega) ───────────────────────────────────────
 
     def _open_comparison(self):
+        """Abre la tabla de entrega."""
         alpha = self._controls.current_alpha()
+        dlg = self._comparison_dialog
+        if dlg is not None and dlg.isVisible():
+            if dlg.alpha == alpha:
+                dlg.raise_()
+                dlg.activateWindow()
+                return
+            dlg.close()
         self._comparison_dialog = ComparisonDialog(self, alpha=alpha)
         self._comparison_dialog.show()
 
-    def closeEvent(self, event):                   # noqa: N802 (nombre de Qt)
+    def closeEvent(self, event):
         """Cancela y espera el hilo antes de cerrar para evitar cierres bruscos."""
         self._pending = None
+        if self._comparison_dialog is not None:
+            self._comparison_dialog.close()
         if self._worker is not None:
             self._worker.cancel()
         if self._thread is not None:

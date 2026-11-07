@@ -1,25 +1,4 @@
-"""
-simulation_runner.py
-====================
-Orquestador de la simulación.  No conoce la GUI: recibe parámetros y retorna
-resultados (se puede usar en scripts y pruebas).
-
-Dos etapas (para que la interfaz responda de inmediato, RF1):
-
-  run_point(params)  → señales, constelación, ojo, espectro, métricas, BER
-                       teórica y BER puntual.  Tarda decenas de milisegundos.
-  run_curve(...)     → curva BER simulada por Monte Carlo (más lenta, con
-                       progreso y cancelación).
-  run(params)        → ambas etapas.
-
-Curva BER por Monte Carlo
--------------------------
-Para cada Eb/N0 se simulan bloques de `CURVE_BLOCK_SYMBOLS` símbolos hasta
-acumular `min_errors` errores o llegar a `max_symbols` símbolos.  Cada bloque
-usa semillas derivadas (seed, índice de punto, bloque) → resultados
-reproducibles y puntos independientes entre sí (RNF3).  Un punto sin errores
-no es "BER = 0": solo indica BER < 1/bits_simulados (se grafica como cota).
-"""
+"""Orquestador de la simulación."""
 
 from __future__ import annotations
 
@@ -56,7 +35,7 @@ class SimulationParams:
     alpha:       float = 0.35
     sps:         int   = DEFAULT_SAMPLES_PER_SYM
     n_symbols:   int   = DEFAULT_NUM_SYMBOLS
-    eb_n0_db:    float = DEFAULT_EB_N0_DB      # punto de operación [dB]
+    eb_n0_db:    float = DEFAULT_EB_N0_DB
     eb_n0_min:   float = DEFAULT_EB_N0_MIN
     eb_n0_max:   float = DEFAULT_EB_N0_MAX
     eb_n0_steps: int   = DEFAULT_EB_N0_STEPS
@@ -83,42 +62,38 @@ def _empty() -> np.ndarray:
 @dataclass
 class SimulationResults:
     """Resultados de una simulación (la GUI los lee para graficar)."""
-    # Señales (región útil)
     symbols_tx:      np.ndarray = field(default_factory=_empty)
     symbols_rx:      np.ndarray = field(default_factory=_empty)
-    baseband_shaped: np.ndarray = field(default_factory=_empty)   # TX banda base
-    passband_signal: np.ndarray = field(default_factory=_empty)   # TX pasabanda
-    passband_rx:     np.ndarray = field(default_factory=_empty)   # RX pasabanda (con ruido)
-    baseband_rx:     np.ndarray = field(default_factory=_empty)   # tras demodulación
-    mf_output:       np.ndarray = field(default_factory=_empty)   # tras filtro casado (tasa completa)
+    baseband_shaped: np.ndarray = field(default_factory=_empty)
+    passband_signal: np.ndarray = field(default_factory=_empty)
+    passband_rx:     np.ndarray = field(default_factory=_empty)
+    baseband_rx:     np.ndarray = field(default_factory=_empty)
+    mf_output:       np.ndarray = field(default_factory=_empty)
     ideal_constellation: np.ndarray = field(default_factory=_empty)
 
-    # BER en el punto de operación
     ber_simulated_point: float = 0.0
     errors_point: int = 0
     bits_point:   int = 0
     ber_theoretical_point: float = 0.0
     evm_rms: float = 0.0
 
-    # Curvas BER
     eb_n0_array:     np.ndarray = field(default_factory=_empty)
     ber_theoretical: np.ndarray = field(default_factory=_empty)
     ber_simulated:   np.ndarray = field(default_factory=_empty)
     curve_errors:    np.ndarray = field(default_factory=_empty)
     curve_bits:      np.ndarray = field(default_factory=_empty)
 
-    # Métricas
-    spectral_efficiency: float = 0.0     # bit/s/Hz
-    bit_rate_bps:        float = 0.0     # bit/s
-    symbol_energy:       float = 0.0     # Es teórica [u.e.]
-    symbol_energy_measured: float = 0.0  # Es medida en la señal [u.e.]
-    bit_energy:          float = 0.0     # Eb = Es/k [u.e.]
-    bandwidth_norm:      float = 0.0     # B/Rs
-    bandwidth_hz:        float = 0.0     # B [Hz]
-    signal_power:        float = 0.0     # P_pb [Es/Ts]  (medida)
-    signal_power_theory: float = 0.0     # Es/2 [Es/Ts]
+    spectral_efficiency: float = 0.0
+    bit_rate_bps:        float = 0.0
+    symbol_energy:       float = 0.0
+    symbol_energy_measured: float = 0.0
+    bit_energy:          float = 0.0
+    bandwidth_norm:      float = 0.0
+    bandwidth_hz:        float = 0.0
+    signal_power:        float = 0.0
+    signal_power_theory: float = 0.0
     signal_power_db:     float = 0.0
-    signal_power_per_s:  float = 0.0     # P_pb · Rs [u.e./s]
+    signal_power_per_s:  float = 0.0
 
 
 ProgressCallback = Callable[[int, int], None]
@@ -128,7 +103,6 @@ CancelCallback = Callable[[], bool]
 class SimulationRunner:
     """Ejecuta la simulación de extremo a extremo."""
 
-    # ── Etapa 1: punto de operación ──────────────────────────────────────────
 
     def run_point(self, params: SimulationParams) -> SimulationResults:
         params.validate()
@@ -154,7 +128,6 @@ class SimulationRunner:
             BERCalculator.ber_theoretical(params.scheme, params.m, params.eb_n0_db))
         res.evm_rms = float(np.sqrt(np.mean(np.abs(out.symbols_rx - out.symbols_tx) ** 2)))
 
-        # Curva teórica (instantánea) y ejes de la curva simulada
         res.eb_n0_array = np.linspace(params.eb_n0_min, params.eb_n0_max, params.eb_n0_steps)
         res.ber_theoretical = BERCalculator.ber_theoretical(
             params.scheme, params.m, res.eb_n0_array)
@@ -162,7 +135,6 @@ class SimulationRunner:
         res.curve_errors = np.zeros(len(res.eb_n0_array), dtype=int)
         res.curve_bits = np.zeros(len(res.eb_n0_array), dtype=int)
 
-        # Métricas
         constellation = res.ideal_constellation
         res.symbol_energy = compute_symbol_energy(constellation)
         res.symbol_energy_measured = compute_symbol_energy_measured(out.baseband_tx, params.sps)
@@ -177,15 +149,11 @@ class SimulationRunner:
         res.signal_power_per_s = res.signal_power * params.symbol_rate_baud
         return res
 
-    # ── Etapa 2: curva BER simulada ──────────────────────────────────────────
 
     def run_curve(self, params: SimulationParams, results: SimulationResults,
                   progress: Optional[ProgressCallback] = None,
                   cancelled: Optional[CancelCallback] = None) -> bool:
-        """
-        Llena results.ber_simulated / curve_errors / curve_bits.
-        Retorna False si se canceló antes de terminar.
-        """
+        """Llena results.ber_simulated / curve_errors / curve_bits."""
         ber, errors, bits = self.simulate_ber_curve(
             params.scheme, params.m, params.alpha, results.eb_n0_array,
             params.sps, params.seed, params.min_errors, params.max_symbols,
@@ -202,12 +170,7 @@ class SimulationRunner:
                            max_symbols: int = CURVE_MAX_SYMBOLS,
                            progress: Optional[ProgressCallback] = None,
                            cancelled: Optional[CancelCallback] = None):
-        """
-        Monte Carlo punto a punto con el MISMO sistema que el punto de operación.
-
-        Retorna (ber, errores, bits) o (None, None, None) si se canceló.
-        ber[i] = NaN si no se simuló ningún bit.
-        """
+        """Monte Carlo punto a punto con el mismo sistema del punto de operación."""
         link = CommLink(scheme, m, alpha, sps)
         k = link.k
         pts = np.asarray(eb_n0_db_array, dtype=float)
@@ -234,7 +197,6 @@ class SimulationRunner:
                 progress(i + 1, len(pts))
         return ber, errors, bits_count
 
-    # ── Todo junto ───────────────────────────────────────────────────────────
 
     def run(self, params: SimulationParams,
             progress: Optional[ProgressCallback] = None) -> SimulationResults:

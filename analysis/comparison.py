@@ -1,24 +1,4 @@
-"""
-comparison.py
-=============
-Tabla de entrega del PDF (4PAM, 4QAM, 4PSK): diferencia de Eb/N0 entre pares
-de esquemas para BER = 1e-2 ... 1e-7, con análisis y datos para las gráficas.
-
-Método
-------
-1. TEÓRICO: para cada BER objetivo se invierte numéricamente la fórmula teórica
-   Pb(Eb/N0) (monótona decreciente) con el método de la bisección (sin scipy).
-2. SIMULADO (verificación Monte Carlo): se simula la curva BER de cada esquema
-   y se interpola (log10 BER lineal en dB) el Eb/N0 donde cruza el objetivo.
-   Solo se usan puntos con suficientes errores (MIN_RELIABLE_ERRORS); BER como
-   1e-6 o 1e-7 exigirían ≈ 1e9 bits y por eso se reportan como "n/m"
-   (no medible) en la columna simulada.  Los BER ≤ 1e-4 solo son medibles con
-   muchos símbolos por punto.
-
-Convención del PDF: las columnas son diferencias  A − B  de los Eb/N0 [dB]
-necesarios para alcanzar la misma BER.  Un valor positivo significa que A
-necesita MÁS energía por bit que B.
-"""
+"""Tabla de entrega del PDF: ΔEb/N0 teórica y simulada entre 4PAM, 4QAM y 4PSK para BER de 1e-2 a 1e-7."""
 
 from __future__ import annotations
 
@@ -32,15 +12,12 @@ from utils.constants import (
     BER_TARGETS, COMPARISON_SCHEMES, MIN_RELIABLE_ERRORS, RANDOM_SEED,
 )
 
-# Pares de la tabla del PDF, en el orden del enunciado
 PAIRS = (("4PAM", "4QAM"), ("4PSK", "4QAM"), ("4QAM", "4PAM"))
 
 
 def pair_label(a: str, b: str) -> str:
     return f"{a}-{b}"
 
-
-# ── Inversión de la BER teórica ──────────────────────────────────────────────
 
 def ebn0_for_ber(scheme: str, m: int, target_ber: float,
                  low_db: float = -10.0, high_db: float = 40.0) -> float:
@@ -61,13 +38,7 @@ def ebn0_for_ber(scheme: str, m: int, target_ber: float,
 
 
 def theoretical_table(targets=BER_TARGETS) -> dict:
-    """
-    Retorna {
-      'targets': [...],
-      'ebn0': {'4PAM': [...], '4QAM': [...], '4PSK': [...]},   # dB
-      'diff': {'4PAM-4QAM': [...], '4PSK-4QAM': [...], '4QAM-4PAM': [...]}   # dB
-    }
-    """
+    """Diferencia de Eb/N0 teórica entre cada par de esquemas para los BER objetivo."""
     ebn0 = {name: [ebn0_for_ber(sch, m, t) for t in targets]
             for name, sch, m in COMPARISON_SCHEMES}
     diff = {pair_label(a, b): [x - y for x, y in zip(ebn0[a], ebn0[b])]
@@ -75,15 +46,9 @@ def theoretical_table(targets=BER_TARGETS) -> dict:
     return {"targets": list(targets), "ebn0": ebn0, "diff": diff}
 
 
-# ── Verificación por simulación ──────────────────────────────────────────────
-
 def interpolate_ebn0(eb_n0_db: np.ndarray, ber: np.ndarray, errors: np.ndarray,
                      target: float, min_errors: int = MIN_RELIABLE_ERRORS) -> float:
-    """
-    Eb/N0 [dB] donde la BER simulada cruza `target` (interpolación lineal en
-    log10(BER)).  Devuelve NaN si el cruce no está bracketeado por puntos
-    confiables (≥ min_errors errores).
-    """
+    """Eb/N0 [dB] donde la BER simulada cruza `target` (interpolación lineal en log10(BER))."""
     x = np.asarray(eb_n0_db, float)
     y = np.asarray(ber, float)
     ok = (np.asarray(errors) >= min_errors) & (y > 0)
@@ -102,10 +67,7 @@ def simulate_comparison(alpha: float = 0.35, max_symbols: int = 400_000,
                         seed: int = RANDOM_SEED,
                         progress: Optional[Callable[[int, int], None]] = None,
                         cancelled: Optional[Callable[[], bool]] = None) -> Optional[dict]:
-    """
-    Simula la curva BER de 4PAM, 4QAM y 4PSK (mismo sistema completo) y calcula
-    el Eb/N0 simulado para cada BER objetivo.  Retorna None si se canceló.
-    """
+    """Simula la curva BER de 4PAM, 4QAM y 4PSK y calcula el Eb/N0 simulado en cada BER objetivo."""
     if eb_n0_points is None:
         eb_n0_points = np.arange(0.0, 15.0, 1.0)
     curves = {}
@@ -130,8 +92,6 @@ def simulate_comparison(alpha: float = 0.35, max_symbols: int = 400_000,
     return {"eb_n0": np.asarray(eb_n0_points), "curves": curves,
             "ebn0": sim_ebn0, "diff": sim_diff, "alpha": alpha}
 
-
-# ── Presentación ─────────────────────────────────────────────────────────────
 
 def format_target(t: float) -> str:
     return f"1e-{int(round(-np.log10(t)))}"
@@ -216,6 +176,12 @@ def generate_analysis(theory: dict, sim: Optional[dict] = None) -> str:
             if not np.isnan(v):
                 lines.append(f"   BER {format_target(t)}: 4PAM-4QAM simulado = {v:+.3f} dB "
                              f"(teórico {d1[i]:+.3f} dB, error {v - d1[i]:+.3f} dB).")
+        lines.append("   Incertidumbre estadística: con N errores por punto la BER medida tiene error "
+                     "relativo ≈ 1/√N (≈ 11 % con ~80 errores, ≈ 6 % con ~300). Como la curva baja "
+                     "~1 década cada 1.6 dB cerca de 1e-4, eso equivale a ≈ ±0.07 dB por curva y "
+                     "≈ ±0.1 dB en la diferencia entre dos esquemas: las desviaciones simulado-teórico "
+                     "de ese orden NO indican un error del sistema. Para reducirlas hay que simular "
+                     "más símbolos (--max-simbolos), no afinar la rejilla de Eb/N0.")
         lines.append("   Los BER marcados 'n/m' no alcanzan el mínimo de errores fiables con el tamaño "
                      "Monte Carlo elegido; BER = 1e-6 y 1e-7 exigirían ≈ 1e8–1e9 bits, por lo que "
                      "allí se usa la expresión teórica (validada donde sí es medible).")

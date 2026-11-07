@@ -13,5 +13,6 @@ ANÁLISIS DE RESULTADOS — 4PAM vs 4QAM vs 4PSK (canal AWGN, filtro SRRC)
 6) Verificación por simulación (Monte Carlo, sistema completo con filtro SRRC, modulación y demodulación IQ): 
    BER 1e-2: 4PAM-4QAM simulado = +3.559 dB (teórico +3.559 dB, error +0.000 dB).
    BER 1e-3: 4PAM-4QAM simulado = +3.717 dB (teórico +3.733 dB, error -0.016 dB).
-   BER 1e-4: 4PAM-4QAM simulado = +3.916 dB (teórico +3.806 dB, error +0.109 dB).
+   BER 1e-4: 4PAM-4QAM simulado = +3.910 dB (teórico +3.806 dB, error +0.104 dB).
+   Incertidumbre estadística: con N errores por punto la BER medida tiene error relativo ≈ 1/√N (≈ 11 % con ~80 errores, ≈ 6 % con ~300). Como la curva baja ~1 década cada 1.6 dB cerca de 1e-4, eso equivale a ≈ ±0.07 dB por curva y ≈ ±0.1 dB en la diferencia entre dos esquemas: las desviaciones simulado-teórico de ese orden NO indican un error del sistema. Para reducirlas hay que simular más símbolos (--max-simbolos), no afinar la rejilla de Eb/N0.
    Los BER marcados 'n/m' no alcanzan el mínimo de errores fiables con el tamaño Monte Carlo elegido; BER = 1e-6 y 1e-7 exigirían ≈ 1e8–1e9 bits, por lo que allí se usa la expresión teórica (validada donde sí es medible).

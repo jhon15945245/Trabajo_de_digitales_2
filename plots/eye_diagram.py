@@ -1,19 +1,4 @@
-"""
-eye_diagram.py
-==============
-RF3a — Diagrama del ojo en recepción.
-
-Se superponen segmentos de DOS períodos de símbolo (t ∈ [-T, +T]) de la señal
-a la salida del FILTRO CASADO (tasa de muestreo completa, antes del decisor).
-El instante de muestreo es t = 0, donde el ojo debe estar abierto.
-
-(La versión anterior graficaba la señal antes del filtro casado y usaba un eje
-temporal con paso incorrecto, por lo que la línea de muestreo no caía sobre
-las muestras reales.)
-
-Para señales complejas (QAM/PSK) se superponen I (azul) y Q (naranja);
-para M-PAM solo hay información en I.
-"""
+"""RF3a — Diagrama del ojo en recepción."""
 
 from __future__ import annotations
 
@@ -28,11 +13,7 @@ def eye_time_axis(sps: int) -> np.ndarray:
 
 
 def eye_segments(signal: np.ndarray, sps: int, n_traces: int = 100) -> np.ndarray:
-    """
-    Devuelve matriz (n_traces, 2·sps+1).  El símbolo j está en la muestra j·sps,
-    así que la traza j va de (j-1)·sps a (j+1)·sps y su centro es el instante
-    de muestreo.
-    """
+    """Construye las trazas del ojo: matriz (n_traces, 2·sps+1)."""
     n_symbols = len(signal) // sps
     n_traces = max(0, min(n_traces, n_symbols - 2))
     return np.array([signal[(j - 1) * sps: (j + 1) * sps + 1] for j in range(1, n_traces + 1)])
@@ -40,11 +21,7 @@ def eye_segments(signal: np.ndarray, sps: int, n_traces: int = 100) -> np.ndarra
 
 def plot_eye_diagram(ax: Axes, signal: np.ndarray, sps: int, n_traces: int = 100,
                      title: str = "Diagrama del Ojo", show_q: bool | None = None) -> None:
-    """
-    show_q : True/False fuerza dibujar o no la rama Q.  None (por defecto) la dibuja
-             solo si la señal tiene energía apreciable en Q.  La GUI pasa False
-             para constelaciones reales (PAM, BPSK), donde Q es solo ruido.
-    """
+    """Dibuja el diagrama del ojo de la salida del filtro casado (rama I y, si aplica, Q)."""
     ax.clear()
     t = eye_time_axis(sps)
     segs_i = eye_segments(np.real(signal), sps, n_traces)
