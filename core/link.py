@@ -58,6 +58,7 @@ class CommLink:
         self.modulator = Modulator(fc_norm)
         self.demodulator = Demodulator(fc_norm, alpha)
         self.decisor = Decisor(self.mapper.get_constellation(), self.k)
+        # Los símbolos de relleno alejan los datos útiles de los bordes del filtro.
         self.pad = span // 2 + 6
 
 
@@ -65,6 +66,7 @@ class CommLink:
         """Mapeo → conformación → modulación (sin canal)."""
         out = LinkOutput(bits_tx=np.asarray(bits))
         symbols = self.mapper.map_bits(bits)
+        # Agrega relleno antes y después para reducir efectos de borde.
         padded = np.concatenate([np.zeros(self.pad, complex), symbols,
                                  np.zeros(self.pad, complex)])
         baseband = self.shaper.shape(padded)
@@ -76,6 +78,7 @@ class CommLink:
         return out
 
     def _core(self, n_symbols: int) -> slice:
+        # Delimita la parte que corresponde a los símbolos originales.
         return slice(self.pad * self.sps, (self.pad + n_symbols) * self.sps)
 
 
@@ -92,10 +95,12 @@ class CommLink:
                                        signal_power=p_pb)
         baseband_rx = self.demodulator.demodulate(passband_rx, self.sps)
         if full_rate:
+            # Conserva todas las muestras para mostrar señales y diagramas.
             mf_full = self.matched.filter(baseband_rx)
             symbols_rx = mf_full[core][:: self.sps]
             mf_core = mf_full[core]
         else:
+            # Para contar errores, calcula solo las muestras de decisión necesarias.
             symbols_rx = self.matched.sample_symbols(baseband_rx, core.start, n_sym)
             mf_core = np.array([])
         bits_rx = self.decisor.decide_and_demap(symbols_rx)

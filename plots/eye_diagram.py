@@ -14,6 +14,7 @@ def eye_time_axis(sps: int) -> np.ndarray:
 
 def eye_segments(signal: np.ndarray, sps: int, n_traces: int = 100) -> np.ndarray:
     """Construye las trazas del ojo: matriz (n_traces, 2·sps+1)."""
+    # Cada traza abarca dos símbolos para mostrar el momento de decisión.
     n_symbols = len(signal) // sps
     n_traces = max(0, min(n_traces, n_symbols - 2))
     return np.array([signal[(j - 1) * sps: (j + 1) * sps + 1] for j in range(1, n_traces + 1)])

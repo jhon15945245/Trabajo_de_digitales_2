@@ -24,6 +24,7 @@ class PlotsPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
 
+        # Cada espacio de la cuadrícula muestra una parte distinta del sistema.
         self._fig = Figure(figsize=(12, 8))
         self._ax_eye = self._fig.add_subplot(2, 2, 1)
         self._ax_const = self._fig.add_subplot(2, 2, 2)
@@ -56,6 +57,7 @@ class PlotsPanel(QWidget):
 
     def update_point_plots(self, results, params) -> None:
         """Ojo, constelación, espectro y curva teórica (punto de operación)."""
+        # Muestra Q solo si la constelación usa la componente en cuadratura.
         has_q = bool(np.any(np.abs(results.ideal_constellation.imag) > 1e-9))
         plot_eye_diagram(self._ax_eye, results.mf_output, params.sps, n_traces=100,
                          show_q=has_q)

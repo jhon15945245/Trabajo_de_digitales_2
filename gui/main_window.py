@@ -39,6 +39,7 @@ class SimulationWorker(QObject):
 
     def run(self) -> None:
         try:
+            # El cálculo corre en segundo plano para mantener la ventana disponible.
             runner = SimulationRunner()
             results = runner.run_point(self._params)
             self.point_ready.emit(results, self._params)
@@ -67,6 +68,7 @@ class MainWindow(QMainWindow):
 
 
     def _build_ui(self):
+        # Separa los controles de entrada de la zona de resultados.
         central = QWidget()
         self.setCentralWidget(central)
         h_layout = QHBoxLayout(central)
@@ -103,6 +105,7 @@ class MainWindow(QMainWindow):
 
     def _on_simulate_requested(self, params: SimulationParams, automatic: bool):
         if self._thread is not None:
+            # Si ya hay un cálculo, guarda el último pedido y cancela el actual.
             self._pending = params
             if self._worker is not None:
                 self._worker.cancel()
@@ -132,6 +135,7 @@ class MainWindow(QMainWindow):
     def _on_point_ready(self, results, params):
         if self._pending is not None:
             return
+        # Muestra primero las gráficas y métricas del punto solicitado.
         self._plots.update_point_plots(results, params)
         self._controls.update_metrics(results, params)
         self._progress.setRange(0, params.eb_n0_steps)
@@ -170,6 +174,7 @@ class MainWindow(QMainWindow):
         self._progress.hide()
         self._controls.set_busy(False)
         if self._pending is not None:
+            # Ejecuta el cambio más reciente solicitado durante el cálculo anterior.
             params, self._pending = self._pending, None
             self._start(params)
 

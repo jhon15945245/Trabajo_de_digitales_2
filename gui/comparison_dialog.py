@@ -124,6 +124,7 @@ class ComparisonDialog(QDialog):
 
 
     def _refresh(self):
+        # Actualiza juntos la tabla, el análisis y las gráficas de comparación.
         rows = table_rows(self._theory, self._sim)
         self._table.setRowCount(len(rows) - 1)
         self._table.setColumnCount(len(rows[0]))
@@ -148,6 +149,7 @@ class ComparisonDialog(QDialog):
         if not ok:
             QMessageBox.warning(self, "Valor no permitido", msg)
             return
+        # La verificación Monte Carlo corre en segundo plano y muestra su avance.
         self._sim_btn.setEnabled(False)
         self._progress.setRange(0, 1)
         self._progress.setValue(0)

@@ -39,6 +39,7 @@ class PulseShaper:
         coeffs = np.zeros(len(t))
 
         for idx, ti in enumerate(t):
+            # Trata por separado los puntos donde la fórmula general no está definida.
             if ti == 0.0:
                 coeffs[idx] = (1.0 - alpha) + 4.0 * alpha / np.pi
             elif alpha > 0 and np.isclose(abs(ti), 1.0 / (4.0 * alpha), rtol=0, atol=1e-9):
@@ -52,6 +53,7 @@ class PulseShaper:
                 den = np.pi * ti * (1.0 - (4.0 * alpha * ti) ** 2)
                 coeffs[idx] = num / den
 
+        # Mantiene la energía total del pulso en un valor unitario.
         coeffs /= np.sqrt(np.sum(coeffs ** 2))
         return coeffs
 
@@ -60,6 +62,7 @@ class MatchedFilter:
     """Receptor — filtro casado SRRC."""
 
     def __init__(self, alpha: float, span: int = 20, sps: int = 8):
+        # En recepción se usa el mismo pulso que dio forma a la señal transmitida.
         self._shaper = PulseShaper(alpha, span, sps)
         self.sps = sps
 

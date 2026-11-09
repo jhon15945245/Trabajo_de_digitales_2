@@ -43,6 +43,7 @@ def fft(x: np.ndarray) -> np.ndarray:
         raise ValueError("La FFT radix-2 requiere una longitud potencia de 2.")
     if n == 1:
         return a.copy()
+    # Ordena las muestras para procesar la señal en etapas de tamaño creciente.
     a = a[_bit_reversal(n)]
     size = 2
     while size <= n:
@@ -102,6 +103,7 @@ def convolve(x: np.ndarray, h: np.ndarray) -> np.ndarray:
     """Convolución lineal (elige método directo o FFT según el tamaño)."""
     x = np.asarray(x)
     h = np.asarray(h)
+    # Para filtros cortos conviene el cálculo directo; para largos, el de FFT.
     if min(len(x), len(h)) > _DIRECT_MAX_TAPS:
         return _convolve_fft(x, h)
     return _convolve_direct(x, h)

@@ -20,6 +20,7 @@ def welch_psd(signal: np.ndarray, nperseg: int | None = None, overlap: float = 0
     w = 0.5 - 0.5 * np.cos(2.0 * np.pi * np.arange(nperseg) / (nperseg - 1))
     u = np.sum(w ** 2)
 
+    # Promedia segmentos solapados para obtener una estimación más estable del espectro.
     acc = np.zeros(nperseg)
     count = 0
     for start in range(0, n - nperseg + 1, step):

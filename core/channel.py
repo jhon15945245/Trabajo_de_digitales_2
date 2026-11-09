@@ -11,12 +11,14 @@ class AWGNChannel:
     """Canal AWGN."""
 
     def __init__(self, seed=RANDOM_SEED):
+        # La semilla permite repetir la misma simulación cuando se usan los mismos datos.
         self._rng = np.random.default_rng(seed)
 
     @staticmethod
     def noise_variance(signal_power: float, is_complex: bool, eb_n0_db: float,
                        bits_per_symbol: int, sps: int) -> float:
         """Varianza del ruido (por componente real) para un Eb/N0 dado."""
+        # Convierte la potencia recibida en energía por bit y la ajusta al Eb/N0 solicitado.
         p_bb = signal_power if is_complex else 2.0 * signal_power
         es = p_bb * sps
         eb = es / bits_per_symbol
@@ -34,6 +36,7 @@ class AWGNChannel:
         sigma2 = self.noise_variance(signal_power, is_complex, eb_n0_db,
                                      bits_per_symbol, sps)
         std = np.sqrt(sigma2)
+        # En una señal compleja se agrega ruido independiente a I y Q.
         if is_complex:
             noise = (self._rng.normal(0.0, std, len(signal))
                      + 1j * self._rng.normal(0.0, std, len(signal)))

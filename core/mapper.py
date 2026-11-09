@@ -30,6 +30,7 @@ class Mapper:
         """Convierte los bits en símbolos: agrupa de a k bits, obtiene la etiqueta y busca el punto."""
         k = self.bits_per_symbol
         n_symbols = len(bits) // k
+        # Cada grupo de bits se interpreta como una etiqueta de la constelación.
         groups = np.asarray(bits[: n_symbols * k], dtype=np.int64).reshape(n_symbols, k)
         powers = 2 ** np.arange(k - 1, -1, -1)
         labels = groups @ powers
@@ -60,6 +61,7 @@ class Mapper:
     def _gray_permute(values_by_position: np.ndarray) -> np.ndarray:
         """Devuelve el arreglo indexado por etiqueta Gray: out[Gray(p)] = values[p]."""
         out = np.zeros_like(values_by_position)
+        # Reordena los puntos para que vecinos cercanos tengan etiquetas similares.
         for p, g in enumerate(gray_code(len(values_by_position))):
             out[g] = values_by_position[p]
         return out
@@ -79,6 +81,7 @@ class Mapper:
 
         constellation = np.zeros(self.m, dtype=complex)
         for label in range(self.m):
+            # La etiqueta combina una posición horizontal (I) y otra vertical (Q).
             i_label = label // sqrt_m
             q_label = label % sqrt_m
             constellation[label] = pam_gray[i_label] + 1j * pam_gray[q_label]
@@ -93,5 +96,6 @@ class Mapper:
 def generate_random_bits(n_symbols: int, bits_per_symbol: int,
                          seed=RANDOM_SEED) -> np.ndarray:
     """Genera bits aleatorios reproducibles (RNF3)."""
+    # Usar la misma semilla reproduce la misma secuencia de bits.
     rng = np.random.default_rng(seed)
     return rng.integers(0, 2, size=n_symbols * bits_per_symbol)

@@ -19,10 +19,12 @@ class Decisor:
         """Índice del símbolo más cercano (procesa por bloques para limitar memoria)."""
         r = np.asarray(received_symbols)
         c_re, c_im = self._constellation.real, self._constellation.imag
+        # Divide los datos para no comparar todos los símbolos a la vez en memoria.
         chunk = max(1, _CHUNK_ELEMENTS // self._m)
         out = np.empty(len(r), dtype=np.int64)
         for start in range(0, len(r), chunk):
             seg = r[start: start + chunk]
+            # Elige para cada símbolo recibido el punto ideal más cercano.
             d2 = ((seg.real[:, None] - c_re[None, :]) ** 2
                   + (seg.imag[:, None] - c_im[None, :]) ** 2)
             out[start: start + chunk] = np.argmin(d2, axis=1)
@@ -31,6 +33,7 @@ class Decisor:
     def demap(self, decided_indices: np.ndarray) -> np.ndarray:
         """Índices → bits (vectorizado, big-endian: primer bit = más significativo)."""
         k = self._bits_per_symbol
+        # Recupera los bits de cada etiqueta en el mismo orden usado al transmitir.
         shifts = np.arange(k - 1, -1, -1)
         bits = (decided_indices[:, None] >> shifts[None, :]) & 1
         return bits.reshape(-1).astype(int)

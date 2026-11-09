@@ -109,6 +109,7 @@ class SimulationRunner:
         link = CommLink(params.scheme, params.m, params.alpha, params.sps)
         k = link.k
 
+        # Primero calcula una transmisión para el punto de operación elegido.
         bits = generate_random_bits(params.n_symbols, k, params.seed)
         out = link.run(bits, params.eb_n0_db, [params.seed, 1])
 
@@ -128,6 +129,7 @@ class SimulationRunner:
             BERCalculator.ber_theoretical(params.scheme, params.m, params.eb_n0_db))
         res.evm_rms = float(np.sqrt(np.mean(np.abs(out.symbols_rx - out.symbols_tx) ** 2)))
 
+        # Prepara los valores del eje; la curva simulada se completa en run_curve.
         res.eb_n0_array = np.linspace(params.eb_n0_min, params.eb_n0_max, params.eb_n0_steps)
         res.ber_theoretical = BERCalculator.ber_theoretical(
             params.scheme, params.m, res.eb_n0_array)
@@ -135,6 +137,7 @@ class SimulationRunner:
         res.curve_errors = np.zeros(len(res.eb_n0_array), dtype=int)
         res.curve_bits = np.zeros(len(res.eb_n0_array), dtype=int)
 
+        # Calcula las métricas que acompañan las gráficas y resultados.
         constellation = res.ideal_constellation
         res.symbol_energy = compute_symbol_energy(constellation)
         res.symbol_energy_measured = compute_symbol_energy_measured(out.baseband_tx, params.sps)
@@ -180,6 +183,7 @@ class SimulationRunner:
         n_blocks_max = max(1, int(np.ceil(max_symbols / CURVE_BLOCK_SYMBOLS)))
         block = min(CURVE_BLOCK_SYMBOLS, max_symbols)
 
+        # Cada punto de Eb/N0 se simula por separado hasta lograr suficientes errores.
         for i, eb_n0 in enumerate(pts):
             n_err = n_bits = 0
             for b in range(n_blocks_max):
@@ -200,6 +204,7 @@ class SimulationRunner:
 
     def run(self, params: SimulationParams,
             progress: Optional[ProgressCallback] = None) -> SimulationResults:
+        # Ejecuta el punto solicitado y luego completa la curva BER.
         results = self.run_point(params)
         self.run_curve(params, results, progress)
         return results

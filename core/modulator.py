@@ -21,6 +21,7 @@ class Modulator:
     def modulate(self, baseband_signal: np.ndarray) -> np.ndarray:
         n = np.arange(len(baseband_signal))
         phase = 2.0 * np.pi * self.fc_norm * n
+        # Combina las componentes I y Q sobre una portadora real.
         return (np.real(baseband_signal) * np.cos(phase)
                 - np.imag(baseband_signal) * np.sin(phase))
 
@@ -43,6 +44,7 @@ class Demodulator:
         phase = 2.0 * np.pi * self.fc_norm * n
         h = self._lowpass_coefficients(sps)
 
+        # Recupera por separado las componentes I y Q y elimina la portadora.
         i_filtered = fir_filter_centered(rf_signal * np.cos(phase), h)
         q_filtered = fir_filter_centered(rf_signal * (-np.sin(phase)), h)
         return 2.0 * (i_filtered + 1j * q_filtered)
@@ -52,6 +54,7 @@ class Demodulator:
         cutoff = self.lowpass_cutoff_rs() / sps
         if cutoff >= 0.5:
             raise ValueError("El corte del LPF supera Nyquist: aumente sps.")
+        # El filtro deja pasar la señal útil y reduce los componentes de alta frecuencia.
         n_taps = LPF_TAPS_PER_SYMBOL * sps + 1
         n_vec = np.arange(-(n_taps // 2), n_taps // 2 + 1)
 

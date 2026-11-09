@@ -24,6 +24,7 @@ def export_results(folder: str, theory: dict, sim: dict | None = None) -> list[s
     os.makedirs(folder, exist_ok=True)
     paths = []
 
+    # Genera formatos de tabla reutilizables para el informe y la hoja de cálculo.
     rows = table_rows(theory, sim)
     csv_path = os.path.join(folder, "tabla_diferencias_ebn0.csv")
     with open(csv_path, "w", newline="", encoding="utf-8") as fh:
@@ -43,6 +44,7 @@ def export_results(folder: str, theory: dict, sim: dict | None = None) -> list[s
         fh.write(generate_analysis(theory, sim) + "\n")
     paths.append(txt_path)
 
+    # Guarda también las gráficas para incluirlas directamente en la entrega.
     for name, fn in (("comparacion_ber.png", lambda ax: plot_ber_comparison(ax, sim=sim)),
                      ("diferencias_ebn0.png", lambda ax: plot_delta_bars(ax, theory, sim)),
                      ("ebn0_requerido.png", lambda ax: plot_required_ebn0(ax, theory))):

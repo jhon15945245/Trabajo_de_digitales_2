@@ -22,6 +22,7 @@ def pair_label(a: str, b: str) -> str:
 def ebn0_for_ber(scheme: str, m: int, target_ber: float,
                  low_db: float = -10.0, high_db: float = 40.0) -> float:
     """Eb/N0 [dB] tal que BER_teórica = target (bisección; BER decrece con Eb/N0)."""
+    # Busca el valor que alcanza la BER objetivo dentro del rango indicado.
     def ber(x):
         return float(BERCalculator.ber_theoretical(scheme, m, x))
 
@@ -49,6 +50,7 @@ def theoretical_table(targets=BER_TARGETS) -> dict:
 def interpolate_ebn0(eb_n0_db: np.ndarray, ber: np.ndarray, errors: np.ndarray,
                      target: float, min_errors: int = MIN_RELIABLE_ERRORS) -> float:
     """Eb/N0 [dB] donde la BER simulada cruza `target` (interpolación lineal en log10(BER))."""
+    # Ignora puntos con muy pocos errores para no apoyar la comparación en datos débiles.
     x = np.asarray(eb_n0_db, float)
     y = np.asarray(ber, float)
     ok = (np.asarray(errors) >= min_errors) & (y > 0)
@@ -68,6 +70,7 @@ def simulate_comparison(alpha: float = 0.35, max_symbols: int = 400_000,
                         progress: Optional[Callable[[int, int], None]] = None,
                         cancelled: Optional[Callable[[], bool]] = None) -> Optional[dict]:
     """Simula la curva BER de 4PAM, 4QAM y 4PSK y calcula el Eb/N0 simulado en cada BER objetivo."""
+    # Usa la misma lista de valores Eb/N0 para comparar los tres esquemas.
     if eb_n0_points is None:
         eb_n0_points = np.arange(0.0, 15.0, 1.0)
     curves = {}

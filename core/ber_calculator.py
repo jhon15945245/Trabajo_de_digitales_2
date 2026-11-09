@@ -24,6 +24,7 @@ class BERCalculator:
         n_total = min(len(bits_tx), len(bits_rx))
         if n_total == 0:
             return 0, 0
+        # Compara solo la parte disponible en ambas secuencias.
         n_errors = int(np.sum(bits_tx[:n_total] != bits_rx[:n_total]))
         return n_errors, n_total
 
@@ -37,6 +38,7 @@ class BERCalculator:
     @staticmethod
     def ber_theoretical(scheme: str, m: int, eb_n0_db) -> np.ndarray:
         """BER teórica para Eb/N0 en dB (escalar o arreglo)."""
+        # Las fórmulas reciben Eb/N0 en escala lineal, aunque la interfaz use dB.
         eb_n0_db = np.asarray(eb_n0_db, dtype=float)
         eb_n0_lin = 10.0 ** (eb_n0_db / 10.0)
         k = np.log2(m)
@@ -47,6 +49,7 @@ class BERCalculator:
         }
         if scheme not in dispatch:
             raise ValueError(f"Esquema no reconocido: {scheme}")
+        # Selecciona la expresión correspondiente al tipo de modulación.
         return dispatch[scheme](m, k, eb_n0_lin)
 
     @staticmethod

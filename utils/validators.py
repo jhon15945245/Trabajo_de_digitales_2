@@ -172,6 +172,7 @@ def validate_simulation_params(scheme, m, alpha, n_symbols, eb_n0_db, eb_n0_min,
                                eb_n0_max, eb_n0_steps, symbol_rate_baud,
                                min_errors, max_symbols, sps):
     """Valida todos los parámetros de una simulación."""
+    # Reúne todos los problemas para que el usuario pueda corregirlos de una vez.
     errors: dict[str, str] = {}
     values: dict = {}
 

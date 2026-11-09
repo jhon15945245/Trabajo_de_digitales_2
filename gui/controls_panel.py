@@ -58,6 +58,7 @@ class ControlsPanel(QWidget):
 
 
     def _build_ui(self):
+        # Organiza en grupos los datos de modulación, canal, curva y métricas.
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         scroll = QScrollArea()
@@ -207,6 +208,7 @@ class ControlsPanel(QWidget):
             DEFAULT_SAMPLES_PER_SYM)
         self._show_errors(errors)
         if errors:
+            # No inicia la simulación hasta que todos los valores sean válidos.
             if show_dialog:
                 QMessageBox.warning(self, "Valores no permitidos",
                                     "Corrija los siguientes parámetros:\n\n• "
@@ -245,6 +247,7 @@ class ControlsPanel(QWidget):
 
     def _schedule_auto(self, *_):
         if hasattr(self, "_auto_chk") and self._auto_chk.isChecked():
+            # Espera a que el usuario termine de editar antes de actualizar.
             self._auto_timer.start()
 
     def _on_auto_timeout(self):
@@ -267,6 +270,7 @@ class ControlsPanel(QWidget):
         return params.alpha if params else default
 
     def update_metrics(self, results, params) -> None:
+        # Presenta una cota cuando no hubo errores, en vez de mostrar BER cero.
         m = self._metric_labels
         if results.errors_point == 0:
             bound = 1.0 / max(results.bits_point, 1)

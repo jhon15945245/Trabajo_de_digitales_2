@@ -20,6 +20,7 @@ def plot_ber_curve(ax: Axes, eb_n0_db: np.ndarray, ber_theoretical: np.ndarray,
 
     if ber_simulated is not None and len(ber_simulated):
         ber_simulated = np.asarray(ber_simulated, float)
+        # Los puntos con cero errores se muestran como un límite, no como BER cero.
         has_err = np.isfinite(ber_simulated) & (ber_simulated > 0)
         if np.any(has_err):
             ax.semilogy(np.asarray(eb_n0_db)[has_err], ber_simulated[has_err], "ro--",
